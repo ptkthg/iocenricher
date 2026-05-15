@@ -1,0 +1,284 @@
+From bb830945977a58518b11cb05571017f99aa962fe Mon Sep 17 00:00:00 2001
+From: Patrick Thiago <ptkamp1@gmail.com>
+Date: Sun, 10 May 2026 15:58:49 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20MITRE=20ATT&CK=20mapping=20=E2=80=94=20?=
+ =?UTF-8?q?backend=20service=20+=20Enrichment=20card=20+=20Bulk=20tags?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ backend/routes/enrich.js          |   2 +
+ backend/services/mitre.js         |  95 +++++++++++++++++++++++++++
+ frontend/src/pages/Bulk.jsx       |  10 +++
+ frontend/src/pages/Enrichment.jsx | 104 ++++++++++++++++++++++++++++++
+ 4 files changed, 211 insertions(+)
+ create mode 100644 backend/services/mitre.js
+
+diff --git a/backend/routes/enrich.js b/backend/routes/enrich.js
+index 3b2e8c0..9817194 100644
+--- a/backend/routes/enrich.js
++++ b/backend/routes/enrich.js
+@@ -6,6 +6,7 @@ const { checkHash } = require('../services/malwarebazaar');
+ const { checkURL, checkHostname, checkPayloadHash } = require('../services/urlhaus');
+ const { analyzeIOC } = require('../services/openai');
+ const { calculateRisk } = require('../services/risk');
++const { mapToMitre } = require('../services/mitre');
+ 
+ function detectType(indicator) {
+   const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+@@ -76,6 +77,7 @@ router.post('/enrich', async (req, res) => {
+     const { score, level, recommendation, factors } = calculateRisk(results.sources, type);
+     results.risk = { score, level, factors };
+     results.recommendation = recommendation;
++    results.mitre = mapToMitre(results.sources, type);
+ 
+     try {
+       const ai = await analyzeIOC(results);
+diff --git a/backend/services/mitre.js b/backend/services/mitre.js
+new file mode 100644
+index 0000000..b207316
+--- /dev/null
++++ b/backend/services/mitre.js
+@@ -0,0 +1,95 @@
++// MITRE ATT&CK mapping service
++// Maps threat intel signals to real ATT&CK techniques (no API key required)
++
++const TECHNIQUES = {
++  T1071: { id: 'T1071', name: 'Application Layer Protocol', tactic: 'Command and Control', tacticId: 'TA0011', url: 'https://attack.mitre.org/techniques/T1071' },
++  T1095: { id: 'T1095', name: 'Non-Application Layer Protocol', tactic: 'Command and Control', tacticId: 'TA0011', url: 'https://attack.mitre.org/techniques/T1095' },
++  T1566: { id: 'T1566', name: 'Phishing', tactic: 'Initial Access', tacticId: 'TA0001', url: 'https://attack.mitre.org/techniques/T1566' },
++  T1105: { id: 'T1105', name: 'Ingress Tool Transfer', tactic: 'Command and Control', tacticId: 'TA0011', url: 'https://attack.mitre.org/techniques/T1105' },
++  T1486: { id: 'T1486', name: 'Data Encrypted for Impact', tactic: 'Impact', tacticId: 'TA0040', url: 'https://attack.mitre.org/techniques/T1486' },
++  T1219: { id: 'T1219', name: 'Remote Access Software', tactic: 'Command and Control', tacticId: 'TA0011', url: 'https://attack.mitre.org/techniques/T1219' },
++  T1496: { id: 'T1496', name: 'Resource Hijacking', tactic: 'Impact', tacticId: 'TA0040', url: 'https://attack.mitre.org/techniques/T1496' },
++  T1190: { id: 'T1190', name: 'Exploit Public-Facing Application', tactic: 'Initial Access', tacticId: 'TA0001', url: 'https://attack.mitre.org/techniques/T1190' },
++  T1056: { id: 'T1056', name: 'Input Capture', tactic: 'Collection', tacticId: 'TA0009', url: 'https://attack.mitre.org/techniques/T1056' },
++  T1552: { id: 'T1552', name: 'Unsecured Credentials', tactic: 'Credential Access', tacticId: 'TA0006', url: 'https://attack.mitre.org/techniques/T1552' },
++  T1539: { id: 'T1539', name: 'Steal Web Session Cookie', tactic: 'Credential Access', tacticId: 'TA0006', url: 'https://attack.mitre.org/techniques/T1539' },
++  T1041: { id: 'T1041', name: 'Exfiltration Over C2 Channel', tactic: 'Exfiltration', tacticId: 'TA0010', url: 'https://attack.mitre.org/techniques/T1041' },
++  T1204: { id: 'T1204', name: 'User Execution', tactic: 'Execution', tacticId: 'TA0002', url: 'https://attack.mitre.org/techniques/T1204' },
++  T1498: { id: 'T1498', name: 'Network Denial of Service', tactic: 'Impact', tacticId: 'TA0040', url: 'https://attack.mitre.org/techniques/T1498' },
++  T1583: { id: 'T1583', name: 'Acquire Infrastructure', tactic: 'Resource Development', tacticId: 'TA0042', url: 'https://attack.mitre.org/techniques/T1583' },
++  T1027: { id: 'T1027', name: 'Obfuscated Files or Information', tactic: 'Defense Evasion', tacticId: 'TA0005', url: 'https://attack.mitre.org/techniques/T1027' },
++  T1588: { id: 'T1588', name: 'Obtain Capabilities', tactic: 'Resource Development', tacticId: 'TA0042', url: 'https://attack.mitre.org/techniques/T1588' },
++  T1059: { id: 'T1059', name: 'Command and Scripting Interpreter', tactic: 'Execution', tacticId: 'TA0002', url: 'https://attack.mitre.org/techniques/T1059' },
++};
++
++// Keyword → technique mapping
++const KEYWORD_MAP = [
++  { keywords: ['botnet', 'c2', 'c&c', 'command', 'control', 'cnc'], techniques: ['T1071', 'T1095', 'T1041'] },
++  { keywords: ['phishing', 'spear', 'credential', 'login', 'harvest', 'spamming', 'spam'], techniques: ['T1566', 'T1552', 'T1539'] },
++  { keywords: ['malware', 'download', 'dropper', 'loader', 'payload', 'exe', 'malware_download'], techniques: ['T1105', 'T1204'] },
++  { keywords: ['ransomware', 'ransom', 'encrypt', 'locker', 'cryptolocker'], techniques: ['T1486', 'T1041'] },
++  { keywords: ['rat', 'remote', 'backdoor', 'trojan', 'remote access'], techniques: ['T1219', 'T1071'] },
++  { keywords: ['banker', 'banking', 'formgrabber', 'stealer', 'infostealer', 'keylog'], techniques: ['T1056', 'T1539', 'T1552'] },
++  { keywords: ['miner', 'coin', 'crypto', 'xmrig', 'monero'], techniques: ['T1496'] },
++  { keywords: ['exploit', 'kit', 'vulnerability', 'cve', 'rig', 'fallout', 'blackhole'], techniques: ['T1190', 'T1588'] },
++  { keywords: ['ddos', 'dos', 'flood', 'amplification', 'reflection'], techniques: ['T1498'] },
++  { keywords: ['obfuscat', 'pack', 'crypt', 'encoded', 'shellcode'], techniques: ['T1027', 'T1059'] },
++  { keywords: ['infrastructure', 'hosting', 'bulletproof'], techniques: ['T1583'] },
++];
++
++function normalize(str) {
++  return (str || '').toLowerCase().replace(/[_\-\.]/g, ' ');
++}
++
++function mapToMitre(sources, type) {
++  const techniqueIds = new Set();
++  const signals = [];
++
++  // Collect all text signals from sources
++  const urlhaus = sources.urlhaus;
++  const mb = sources.malwarebazaar;
++  const vt = sources.virustotal;
++
++  if (urlhaus?.found) {
++    if (urlhaus.threat) signals.push(normalize(urlhaus.threat));
++    if (urlhaus.signature) signals.push(normalize(urlhaus.signature));
++    if (urlhaus.tags) urlhaus.tags.forEach(t => signals.push(normalize(t)));
++  }
++
++  if (mb?.found) {
++    if (mb.signature) signals.push(normalize(mb.signature));
++    if (mb.tags) mb.tags.forEach(t => signals.push(normalize(t)));
++    if (mb.file_type) signals.push(normalize(mb.file_type));
++  }
++
++  if (vt) {
++    if (vt.malicious > 0) signals.push('malware');
++    if (vt.categories) Object.values(vt.categories).forEach(c => signals.push(normalize(c)));
++    if (vt.tags) vt.tags.forEach(t => signals.push(normalize(t)));
++  }
++
++  // Baseline techniques by IOC type
++  if (type === 'ip' && sources.ipinfo) techniqueIds.add('T1583');
++  if (type === 'url') techniqueIds.add('T1105');
++  if (type === 'hash') techniqueIds.add('T1204');
++  if (type === 'domain') techniqueIds.add('T1583');
++
++  // Match signals to techniques
++  for (const signal of signals) {
++    for (const rule of KEYWORD_MAP) {
++      if (rule.keywords.some(k => signal.includes(k))) {
++        rule.techniques.forEach(t => techniqueIds.add(t));
++      }
++    }
++  }
++
++  // If high risk with no specific match, add generic ones
++  if (techniqueIds.size <= 1 && (sources.urlhaus?.found || sources.malwarebazaar?.found)) {
++    techniqueIds.add('T1071');
++    techniqueIds.add('T1041');
++  }
++
++  return [...techniqueIds].map(id => TECHNIQUES[id]).filter(Boolean);
++}
++
++module.exports = { mapToMitre };
+diff --git a/frontend/src/pages/Bulk.jsx b/frontend/src/pages/Bulk.jsx
+index 9321fcc..1029cde 100644
+--- a/frontend/src/pages/Bulk.jsx
++++ b/frontend/src/pages/Bulk.jsx
+@@ -398,6 +398,16 @@ export default function Bulk() {
+                   >
+                     <td style={{ ...tdSt, paddingLeft: 20 }}>
+                       <div style={{ color: C.text, fontWeight: 500 }}>{r.indicator}</div>
++                      {r.mitre?.length > 0 && (
++                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
++                          {r.mitre.slice(0, 3).map(t => (
++                            <span key={t.id} style={{ fontSize: 10, fontWeight: 600, fontFamily: 'monospace', color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)', padding: '1px 6px', borderRadius: 4 }}>
++                              {t.id}
++                            </span>
++                          ))}
++                          {r.mitre.length > 3 && <span style={{ fontSize: 10, color: C.textMuted }}>+{r.mitre.length - 3}</span>}
++                        </div>
++                      )}
+                       {r.error && <div style={{ color: C.red, fontSize: 10, marginTop: 3 }}>⚠ {r.error}</div>}
+                     </td>
+                     <td style={tdSt}><Badge color={C.accentLight} bg="rgba(59,130,246,0.1)">{r.type}</Badge></td>
+diff --git a/frontend/src/pages/Enrichment.jsx b/frontend/src/pages/Enrichment.jsx
+index 6381fe6..c598d94 100644
+--- a/frontend/src/pages/Enrichment.jsx
++++ b/frontend/src/pages/Enrichment.jsx
+@@ -136,6 +136,103 @@ function DetailRow({ label, children }) {
+   );
+ }
+ 
++const TACTIC_COLORS = {
++  'Initial Access':        { color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
++  'Execution':             { color: '#fb923c', bg: 'rgba(251,146,60,0.1)' },
++  'Persistence':           { color: '#facc15', bg: 'rgba(250,204,21,0.1)' },
++  'Defense Evasion':       { color: '#a78bfa', bg: 'rgba(167,139,250,0.1)' },
++  'Credential Access':     { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
++  'Collection':            { color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
++  'Command and Control':   { color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
++  'Exfiltration':          { color: '#f87171', bg: 'rgba(248,113,113,0.12)' },
++  'Impact':                { color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
++  'Resource Development':  { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' },
++};
++
++function MitreCard({ techniques }) {
++  // Group by tactic
++  const byTactic = {};
++  techniques.forEach(t => {
++    if (!byTactic[t.tactic]) byTactic[t.tactic] = [];
++    byTactic[t.tactic].push(t);
++  });
++
++  return (
++    <Card>
++      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
++        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(248,113,113,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
++          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
++            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
++          </svg>
++        </div>
++        <div>
++          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>MITRE ATT&CK Mapping</h3>
++          <p style={{ fontSize: 12, color: C.textMuted, margin: 0, marginTop: 2 }}>
++            {techniques.length} technique{techniques.length !== 1 ? 's' : ''} mapped across {Object.keys(byTactic).length} tactic{Object.keys(byTactic).length !== 1 ? 's' : ''}
++          </p>
++        </div>
++        <a
++          href="https://attack.mitre.org"
++          target="_blank"
++          rel="noopener noreferrer"
++          style={{ marginLeft: 'auto', fontSize: 11, color: C.accentLight, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
++        >
++          ATT&CK Navigator ↗
++        </a>
++      </div>
++
++      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
++        {Object.entries(byTactic).map(([tactic, techs]) => {
++          const style = TACTIC_COLORS[tactic] || { color: C.textMuted, bg: 'rgba(136,150,173,0.1)' };
++          return (
++            <div key={tactic}>
++              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
++                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: style.color }}>{tactic}</span>
++                <div style={{ flex: 1, height: 1, background: `${style.color}33` }} />
++              </div>
++              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
++                {techs.map(tech => (
++                  <a
++                    key={tech.id}
++                    href={tech.url}
++                    target="_blank"
++                    rel="noopener noreferrer"
++                    style={{ textDecoration: 'none' }}
++                  >
++                    <div style={{
++                      padding: '10px 14px',
++                      background: style.bg,
++                      border: `1px solid ${style.color}44`,
++                      borderRadius: 10,
++                      display: 'flex', flexDirection: 'column', gap: 4,
++                      cursor: 'pointer', transition: 'border-color 0.15s, transform 0.15s',
++                      minWidth: 180
++                    }}
++                      onMouseEnter={e => { e.currentTarget.style.borderColor = style.color; e.currentTarget.style.transform = 'translateY(-1px)'; }}
++                      onMouseLeave={e => { e.currentTarget.style.borderColor = `${style.color}44`; e.currentTarget.style.transform = 'translateY(0)'; }}
++                    >
++                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
++                        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: style.color, background: `${style.color}18`, padding: '2px 7px', borderRadius: 5 }}>
++                          {tech.id}
++                        </span>
++                      </div>
++                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{tech.name}</div>
++                    </div>
++                  </a>
++                ))}
++              </div>
++            </div>
++          );
++        })}
++      </div>
++
++      <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(59,130,246,0.06)', border: `1px solid ${C.accent}22`, borderRadius: 8, fontSize: 12, color: C.textMuted }}>
++        ℹ Techniques are mapped based on threat intelligence signals from OSINT sources. Click any technique to view full details on MITRE ATT&CK.
++      </div>
++    </Card>
++  );
++}
++
+ export default function Enrichment({ history, setHistory, currentResult, setCurrentResult }) {
+   const [iocType, setIocType] = useState("Domain");
+   const [input, setInput] = useState("");
+@@ -463,6 +560,13 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
+           </div>
+         )}
+ 
++        {/* MITRE ATT&CK */}
++        {showResult && result.mitre?.length > 0 && (
++          <div className="fade-in">
++            <MitreCard techniques={result.mitre} />
++          </div>
++        )}
++
+         {!showResult && !loading && (
+           <Card style={{ padding: "80px 40px", textAlign: "center" }}>
+             <div style={{ fontSize: 56, marginBottom: 16, opacity: 0.4 }}>🔬</div>
+-- 
+2.43.0
+

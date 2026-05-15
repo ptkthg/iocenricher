@@ -1,0 +1,256 @@
+From 3d7185c18f24f345a566229a419a37df4e171356 Mon Sep 17 00:00:00 2001
+From: Patrick Thiago <ptkamp1@gmail.com>
+Date: Sun, 10 May 2026 16:10:58 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20Groq=20AI=20analysis=20=E2=80=94=20serv?=
+ =?UTF-8?q?ice=20+=20card=20no=20Enrichment=20(summary,=20threat=20profile?=
+ =?UTF-8?q?,=20next=20steps,=20FP=20assessment)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ backend/.env.example              |   7 ++-
+ backend/services/openai.js        |  66 +++++++++++++------
+ frontend/src/pages/Enrichment.jsx | 101 ++++++++++++++++++++++++++++++
+ 3 files changed, 154 insertions(+), 20 deletions(-)
+
+diff --git a/backend/.env.example b/backend/.env.example
+index 145d273..2730487 100644
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -1,5 +1,10 @@
++# ─── OSINT APIs ───────────────────────────────────────────
+ VIRUSTOTAL_API_KEY=sua_chave_aqui
+ IPINFO_API_KEY=sua_chave_aqui
+ URLHAUS_API_KEY=sua_chave_aqui
+-OPENAI_API_KEY=sua_chave_aqui
++
++# ─── AI Analysis (Groq — gratuito em groq.com) ────────────
++GROQ_API_KEY=sua_chave_aqui
++
++# ─── Server ───────────────────────────────────────────────
+ PORT=3001
+diff --git a/backend/services/openai.js b/backend/services/openai.js
+index 1384c4f..36ba3b8 100644
+--- a/backend/services/openai.js
++++ b/backend/services/openai.js
+@@ -1,50 +1,78 @@
++// AI Analysis service — powered by Groq (Llama 3.3 70B)
++// Groq API is OpenAI-compatible, just different base URL + model
+ const axios = require('axios');
+ 
+ async function analyzeIOC(enrichmentData) {
+-  const prompt = `Você é um analista Blue Team experiente em SOC. Analise o indicador de comprometimento abaixo e gere uma análise contextual breve em português.
++  if (!process.env.GROQ_API_KEY) {
++    throw new Error('GROQ_API_KEY não configurada.');
++  }
++
++  const mitreTechniques = (enrichmentData.mitre || [])
++    .map(t => `${t.id} - ${t.name} (${t.tactic})`)
++    .join('\n');
++
++  const prompt = `Você é um analista Blue Team experiente em SOC. Analise o indicador de comprometimento abaixo e gere uma análise contextual em português brasileiro.
+ 
+ INDICADOR: ${enrichmentData.indicator}
+ TIPO: ${enrichmentData.type}
+ SCORE DE RISCO: ${enrichmentData.risk?.score}/100 (${enrichmentData.risk?.level})
++RECOMENDAÇÃO: ${enrichmentData.recommendation}
+ 
+-DADOS DAS FONTES OSINT:
++DADOS OSINT:
+ ${JSON.stringify(enrichmentData.sources, null, 2)}
+ 
+-FATORES DE RISCO IDENTIFICADOS:
++FATORES DE RISCO:
+ ${(enrichmentData.risk?.factors || []).map(f => '- ' + f).join('\n')}
+ 
+-Gere uma análise estruturada em formato JSON com os seguintes campos:
+-- "summary": resumo de 2 frases sobre o que é esse indicador e o nível de ameaça
+-- "context": contexto técnico adicional sobre tipo de ameaça, possíveis TTPs MITRE ATT&CK relacionadas
+-- "next_steps": array com 3 ações concretas que um analista SOC deve tomar
+-- "related_techniques": array com IDs de técnicas MITRE ATT&CK relevantes (formato T####.###)
++TÉCNICAS MITRE ATT&CK MAPEADAS:
++${mitreTechniques || 'Nenhuma identificada'}
++
++Responda APENAS com JSON válido contendo exatamente estes campos:
++{
++  "summary": "resumo objetivo de 2-3 frases: o que é esse indicador, nível de ameaça e contexto",
++  "threat_actor_profile": "perfil provável do ator/campanha (ex: botnet, grupo APT, crime comum)",
++  "context": "análise técnica detalhada: tipo de ameaça, comportamento observado, infraestrutura suspeita",
++  "next_steps": ["ação 1 concreta para o analista SOC", "ação 2", "ação 3"],
++  "false_positive_likelihood": "LOW | MEDIUM | HIGH",
++  "false_positive_reason": "motivo pelo qual pode ou não ser falso positivo"
++}
+ 
+-Responda APENAS com o JSON, sem texto adicional, sem markdown, sem blocos de código.`;
++Responda APENAS com o JSON. Sem markdown, sem texto extra, sem blocos de código.`;
+ 
+   const { data } = await axios.post(
+-    'https://api.openai.com/v1/chat/completions',
++    'https://api.groq.com/openai/v1/chat/completions',
+     {
+-      model: 'gpt-4o-mini',
++      model: 'llama-3.3-70b-versatile',
+       messages: [
+-        { role: 'system', content: 'Você é um analista Blue Team. Responda apenas com JSON válido.' },
++        { role: 'system', content: 'Você é um analista sênior de Blue Team. Responda apenas com JSON válido, sem markdown.' },
+         { role: 'user', content: prompt }
+       ],
+-      temperature: 0.3,
+-      response_format: { type: 'json_object' }
++      temperature: 0.2,
++      max_tokens: 1024,
+     },
+     {
+       headers: {
+-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
++        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+         'Content-Type': 'application/json'
+-      }
++      },
++      timeout: 20000
+     }
+   );
+ 
+-  const content = data.choices[0]?.message?.content;
++  const content = data.choices[0]?.message?.content?.trim();
+   try {
+-    return JSON.parse(content);
++    // Strip accidental markdown fences if model adds them
++    const clean = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
++    return JSON.parse(clean);
+   } catch {
+-    return { summary: content, context: null, next_steps: [], related_techniques: [] };
++    return {
++      summary: content,
++      threat_actor_profile: null,
++      context: null,
++      next_steps: [],
++      false_positive_likelihood: 'MEDIUM',
++      false_positive_reason: null
++    };
+   }
+ }
+ 
+diff --git a/frontend/src/pages/Enrichment.jsx b/frontend/src/pages/Enrichment.jsx
+index c598d94..44c307f 100644
+--- a/frontend/src/pages/Enrichment.jsx
++++ b/frontend/src/pages/Enrichment.jsx
+@@ -233,6 +233,100 @@ function MitreCard({ techniques }) {
+   );
+ }
+ 
++const FP_COLORS = {
++  LOW:    { color: '#10b981', bg: 'rgba(16,185,129,0.1)', label: 'Low' },
++  MEDIUM: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Medium' },
++  HIGH:   { color: '#f87171', bg: 'rgba(248,113,113,0.1)', label: 'High' },
++};
++
++function AiAnalysisCard({ analysis, loading }) {
++  if (!analysis && !loading) return null;
++
++  const fp = FP_COLORS[analysis?.false_positive_likelihood] || FP_COLORS.MEDIUM;
++
++  return (
++    <Card>
++      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
++        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(167,139,250,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
++          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
++            <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="18" cy="18" r="4"/><path d="M18 16v2l1 1"/>
++          </svg>
++        </div>
++        <div>
++          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>AI Analysis</h3>
++          <p style={{ fontSize: 12, color: C.textMuted, margin: 0, marginTop: 2 }}>Powered by Groq · Llama 3.3 70B</p>
++        </div>
++        {analysis && (
++          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20, background: fp.bg, border: `1px solid ${fp.color}44` }}>
++            <span style={{ fontSize: 10, color: fp.color, fontWeight: 600 }}>FP Risk: {fp.label}</span>
++          </div>
++        )}
++      </div>
++
++      {!analysis ? (
++        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: C.textMuted, fontSize: 13 }}>
++          <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${C.purple}44`, borderTopColor: C.purple, animation: 'spin 0.8s linear infinite' }} />
++          Generating AI analysis...
++        </div>
++      ) : (
++        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
++
++          {/* Summary */}
++          {analysis.summary && (
++            <div style={{ padding: '14px 16px', background: 'rgba(167,139,250,0.06)', border: `1px solid rgba(167,139,250,0.2)`, borderRadius: 10 }}>
++              <div style={{ fontSize: 11, fontWeight: 700, color: C.purple, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>Summary</div>
++              <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.7 }}>{analysis.summary}</p>
++            </div>
++          )}
++
++          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
++            {/* Threat Actor Profile */}
++            {analysis.threat_actor_profile && (
++              <div style={{ padding: '12px 14px', background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10 }}>
++                <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>Threat Profile</div>
++                <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.6 }}>{analysis.threat_actor_profile}</p>
++              </div>
++            )}
++
++            {/* False Positive */}
++            {analysis.false_positive_reason && (
++              <div style={{ padding: '12px 14px', background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10 }}>
++                <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>False Positive Assessment</div>
++                <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.6 }}>{analysis.false_positive_reason}</p>
++              </div>
++            )}
++          </div>
++
++          {/* Context */}
++          {analysis.context && (
++            <div>
++              <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 }}>Technical Context</div>
++              <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.7 }}>{analysis.context}</p>
++            </div>
++          )}
++
++          {/* Next Steps */}
++          {analysis.next_steps?.length > 0 && (
++            <div>
++              <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>Recommended Actions</div>
++              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
++                {analysis.next_steps.map((step, i) => (
++                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
++                    <span style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: C.purple, flexShrink: 0, marginTop: 1 }}>
++                      {i + 1}
++                    </span>
++                    <span style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{step}</span>
++                  </div>
++                ))}
++              </div>
++            </div>
++          )}
++        </div>
++      )}
++    </Card>
++  );
++}
++
+ export default function Enrichment({ history, setHistory, currentResult, setCurrentResult }) {
+   const [iocType, setIocType] = useState("Domain");
+   const [input, setInput] = useState("");
+@@ -567,6 +661,13 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
+           </div>
+         )}
+ 
++        {/* AI Analysis */}
++        {showResult && (
++          <div className="fade-in">
++            <AiAnalysisCard analysis={result.ai_analysis} loading={loading} />
++          </div>
++        )}
++
+         {!showResult && !loading && (
+           <Card style={{ padding: "80px 40px", textAlign: "center" }}>
+             <div style={{ fontSize: 56, marginBottom: 16, opacity: 0.4 }}>🔬</div>
+-- 
+2.43.0
+
