@@ -166,6 +166,8 @@ export default function Settings() {
   const [pwMsg, setPwMsg] = useState(null);
   const [pwLoading, setPwLoading] = useState(false);
   const [notifTestMsg, setNotifTestMsg] = useState(null);
+  const [testingBackend, setTestingBackend] = useState(false);
+  const [testBackendResult, setTestBackendResult] = useState(null);
 
   // Load user profile
   const [profile, setProfile] = useState(() => {
@@ -246,6 +248,45 @@ export default function Settings() {
       setSettings(DEFAULT_SETTINGS);
       localStorage.removeItem(STORAGE_KEY);
     }
+  }
+
+  function exportHistory(format) {
+    const data = JSON.parse(localStorage.getItem("iocenricher_history") || "[]");
+    if (data.length === 0) { alert("No history data to export."); return; }
+    const ts = Date.now();
+    if (format === "JSON") {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `ioc-history-${ts}.json` });
+      a.click();
+    } else if (format === "CSV") {
+      const cols = ["indicator", "type", "risk.score", "risk.level", "recommendation", "timestamp"];
+      const rows = [cols, ...data.map(h => [h.indicator, h.type, h.risk?.score ?? 0, h.risk?.level || "—", h.recommendation || "—", h.timestamp || "—"])];
+      const csv = rows.map(r => r.map(v => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `ioc-history-${ts}.csv` });
+      a.click();
+    } else if (format === "Markdown") {
+      const lines = ["# IOC Enrichment History\n", `_Exported ${new Date().toLocaleString()}_\n`, "| Indicator | Type | Score | Level | Action |", "|-----------|------|-------|-------|--------|",
+        ...data.map(h => `| \`${h.indicator}\` | ${h.type} | ${h.risk?.score ?? 0} | ${h.risk?.level || "—"} | ${h.recommendation || "—"} |`)];
+      const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `ioc-history-${ts}.md` });
+      a.click();
+    }
+  }
+
+  async function testBackend() {
+    const url = (settings.backendUrl || "http://localhost:3001").replace(/\/$/, "");
+    setTestingBackend(true);
+    setTestBackendResult(null);
+    try {
+      const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) setTestBackendResult({ ok: true, msg: `Connected — ${url}` });
+      else setTestBackendResult({ ok: false, msg: `Server returned ${res.status}` });
+    } catch {
+      setTestBackendResult({ ok: false, msg: "Connection refused or unreachable" });
+    }
+    setTestingBackend(false);
+    setTimeout(() => setTestBackendResult(null), 5000);
   }
 
   return (
@@ -377,10 +418,16 @@ export default function Settings() {
                   onChange={e => update("backendUrl", e.target.value)}
                   style={{ flex: 1, fontSize: 12 }}
                 />
-                <Button variant="secondary" icon={<Icon name="refresh" size={14} />} style={{ fontSize: 12 }}>
-                  Test
+                <Button variant="secondary" onClick={testBackend} disabled={testingBackend}
+                  icon={<Icon name={testingBackend ? "refresh" : "zap"} size={14} />} style={{ fontSize: 12 }}>
+                  {testingBackend ? "Testing..." : "Test"}
                 </Button>
               </div>
+              {testBackendResult && (
+                <div style={{ marginTop: 8, fontSize: 11, padding: "6px 10px", borderRadius: 6, background: testBackendResult.ok ? C.greenBg : C.redBg, color: testBackendResult.ok ? C.green : C.red }}>
+                  {testBackendResult.ok ? "✓ " : "✗ "}{testBackendResult.msg}
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -683,7 +730,7 @@ export default function Settings() {
                   <span style={{ fontSize: 15, fontWeight: 600, color: f.color }}>{f.format}</span>
                 </div>
                 <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16, lineHeight: 1.5 }}>{f.desc}</div>
-                <Button variant="secondary" icon={<Icon name="download" size={14} />} style={{ width: "100%", justifyContent: "center", fontSize: 12 }}>
+                <Button variant="secondary" onClick={() => exportHistory(f.format)} icon={<Icon name="download" size={14} />} style={{ width: "100%", justifyContent: "center", fontSize: 12 }}>
                   Export as {f.format}
                 </Button>
               </Card>

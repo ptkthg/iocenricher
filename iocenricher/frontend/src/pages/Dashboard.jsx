@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { C, FONT, RISK_CFG, timeAgo } from "../lib/theme";
 import Icon from "../components/Icon";
 import { Card, Badge, Button, PageHeader, StatBox } from "../components/UI";
+
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 // ==================== AREA CHART ====================
 function AreaChart({ data, color = C.accent, height = 220 }) {
@@ -135,43 +137,122 @@ function buildTimeline(history, days = 7) {
 
 // ==================== MAIN ====================
 export default function Dashboard({ history, onNavigate, onInvestigate }) {
+  const [days, setDays] = useState(7);
+  const [sourceHealth, setSourceHealth] = useState([]);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthChecked, setHealthChecked] = useState(null);
+
+  // Filter history by selected time range
+  const rangedHistory = useMemo(() => {
+    if (!days) return history;
+    const cutoff = Date.now() - days * 86400000;
+    return history.filter(h => new Date(h.timestamp).getTime() >= cutoff);
+  }, [history, days]);
+
+  const fetchSourceHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/health/sources`);
+      if (!(res.headers.get("content-type") || "").includes("application/json")) throw new Error("unavailable");
+      const data = await res.json();
+      const merged = [
+        { key: "virustotal", name: "VirusTotal", icon: "virustotal" },
+        { key: "ipinfo", name: "IPinfo", icon: "ipinfo" },
+        { key: "urlhaus", name: "URLhaus", icon: "urlhaus" },
+        { key: "malwarebazaar", name: "MalwareBazaar", icon: "malwarebazaar" },
+        { key: "abuseipdb", name: "AbuseIPDB", icon: "abuseipdb" },
+        { key: "shodan", name: "Shodan", icon: "shodan" },
+        { key: "groq", name: "Groq (AI)", icon: "groq" },
+      ].map(s => {
+        const live = data.sources?.find(x => x.name === s.key);
+        return {
+          ...s,
+          status: live?.status === "online" ? "Online" : live?.status === "auth_error" ? "Auth Error" : live ? "Offline" : "Unknown",
+          statusColor: live?.status === "online" ? C.green : live?.status === "auth_error" ? C.orange : live ? C.red : C.textDim,
+          latency: live?.latency,
+          error: live?.error,
+          lookups: history.filter(h => h.sources?.[s.key]).length,
+        };
+      });
+      setSourceHealth(merged);
+      setHealthChecked(new Date());
+    } catch {
+      // Keep previous state on failure
+    }
+    setHealthLoading(false);
+  }, [history]);
+
+  useEffect(() => { fetchSourceHealth(); }, []);
+
+  function exportDashboard() {
+    const rows = [
+      ["Metric", "Value"],
+      ["Time Range", days ? `Last ${days} days` : "All time"],
+      ["Total Lookups", stats.total],
+      ["High-Risk Indicators", stats.highRisk],
+      ["Malicious Rate", `${stats.maliciousRate.toFixed(1)}%`],
+      ["Critical", stats.byLevel.CRÍTICO],
+      ["High", stats.byLevel.ALTO],
+      ["Medium", stats.byLevel.MÉDIO],
+      ["Low", stats.byLevel.BAIXO],
+      ["To Block", stats.byAction.BLOQUEAR],
+      ["To Investigate", stats.byAction.INVESTIGAR],
+      ["To Monitor", stats.byAction.MONITORAR],
+      ["Ignored", stats.byAction.IGNORAR],
+      ["IPs analyzed", stats.byType.ip || 0],
+      ["Domains analyzed", stats.byType.domain || 0],
+      ["URLs analyzed", stats.byType.url || 0],
+      ["Hashes analyzed", stats.byType.hash || 0],
+      ["Generated at", new Date().toISOString()],
+    ];
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dashboard-summary-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const stats = useMemo(() => {
-    const total = history.length;
-    const highRisk = history.filter(h => ["CRÍTICO", "ALTO"].includes(h.risk?.level)).length;
-    const malicious = history.filter(h => h.risk?.level === "CRÍTICO").length;
+    const h = rangedHistory;
+    const total = h.length;
+    const highRisk = h.filter(x => ["CRÍTICO", "ALTO"].includes(x.risk?.level)).length;
+    const malicious = h.filter(x => x.risk?.level === "CRÍTICO").length;
     const maliciousRate = total > 0 ? (malicious / total) * 100 : 0;
 
     const byLevel = {
-      CRÍTICO: history.filter(h => h.risk?.level === "CRÍTICO").length,
-      ALTO: history.filter(h => h.risk?.level === "ALTO").length,
-      MÉDIO: history.filter(h => h.risk?.level === "MÉDIO").length,
-      BAIXO: history.filter(h => h.risk?.level === "BAIXO").length,
+      CRÍTICO: h.filter(x => x.risk?.level === "CRÍTICO").length,
+      ALTO: h.filter(x => x.risk?.level === "ALTO").length,
+      MÉDIO: h.filter(x => x.risk?.level === "MÉDIO").length,
+      BAIXO: h.filter(x => x.risk?.level === "BAIXO").length,
     };
 
     const byAction = {
-      BLOQUEAR: history.filter(h => h.recommendation === "BLOQUEAR").length,
-      INVESTIGAR: history.filter(h => h.recommendation === "INVESTIGAR").length,
-      MONITORAR: history.filter(h => h.recommendation === "MONITORAR").length,
-      IGNORAR: history.filter(h => h.recommendation === "IGNORAR").length,
+      BLOQUEAR: h.filter(x => x.recommendation === "BLOQUEAR").length,
+      INVESTIGAR: h.filter(x => x.recommendation === "INVESTIGAR").length,
+      MONITORAR: h.filter(x => x.recommendation === "MONITORAR").length,
+      IGNORAR: h.filter(x => x.recommendation === "IGNORAR").length,
     };
 
     const byType = {};
-    history.forEach(h => { byType[h.type] = (byType[h.type] || 0) + 1; });
+    h.forEach(x => { byType[x.type] = (byType[x.type] || 0) + 1; });
 
     const tagCounts = {};
-    history.forEach(h => {
-      const tags = [...(h.sources?.urlhaus?.tags || []), ...(h.sources?.malwarebazaar?.tags || [])];
+    h.forEach(x => {
+      const tags = [...(x.sources?.urlhaus?.tags || []), ...(x.sources?.malwarebazaar?.tags || [])];
       tags.forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
     });
     const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
     return { total, highRisk, malicious, maliciousRate, byLevel, byAction, byType, topTags };
-  }, [history]);
+  }, [rangedHistory]);
 
-  const timeline = useMemo(() => buildTimeline(history, 7), [history]);
+  const timeline = useMemo(() => buildTimeline(rangedHistory, days || 30), [rangedHistory, days]);
   const recentHigh = useMemo(
-    () => history.filter(h => ["CRÍTICO", "ALTO"].includes(h.risk?.level)).slice(0, 5),
-    [history]
+    () => rangedHistory.filter(h => ["CRÍTICO", "ALTO"].includes(h.risk?.level)).slice(0, 5),
+    [rangedHistory]
   );
 
   const donutSegments = [
@@ -181,13 +262,6 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
     { label: "Low", value: stats.byLevel.BAIXO, color: C.green, pct: stats.total ? (stats.byLevel.BAIXO / stats.total * 100).toFixed(1) : 0 },
   ];
 
-  const sourceHealth = [
-    { name: "VirusTotal", icon: "virustotal", status: "Online", lookups: history.filter(h => h.sources?.virustotal).length, success: 99.6, lastCheck: "1 min ago" },
-    { name: "IPinfo", icon: "ipinfo", status: "Online", lookups: history.filter(h => h.sources?.ipinfo).length, success: 99.9, lastCheck: "1 min ago" },
-    { name: "URLhaus", icon: "urlhaus", status: "Online", lookups: history.filter(h => h.sources?.urlhaus).length, success: 98.7, lastCheck: "2 min ago" },
-    { name: "MalwareBazaar", icon: "malwarebazaar", status: "Online", lookups: history.filter(h => h.sources?.malwarebazaar).length, success: 99.1, lastCheck: "2 min ago" },
-  ];
-
   return (
     <>
       <PageHeader
@@ -195,11 +269,18 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
         subtitle="Operational visibility into indicator triage and source health."
         actions={
           <>
-            <Button variant="secondary" icon={<Icon name="calendar" size={14} />}>
-              Last 7 days
-            </Button>
-            <Button variant="secondary" icon={<Icon name="download" size={14} />}>
-              Export
+            <div style={{ display: "flex", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden" }}>
+              {[{ label: "7d", value: 7 }, { label: "30d", value: 30 }, { label: "All", value: 0 }].map(opt => (
+                <button key={opt.value} onClick={() => setDays(opt.value)} style={{
+                  padding: "7px 14px", background: days === opt.value ? "rgba(59,130,246,0.15)" : "transparent",
+                  border: "none", borderRight: `1px solid ${C.border}`, color: days === opt.value ? C.accentLight : C.textMuted,
+                  fontSize: 12, fontFamily: FONT, cursor: "pointer", fontWeight: days === opt.value ? 600 : 400,
+                  transition: "all 0.15s",
+                }}>{opt.label}</button>
+              ))}
+            </div>
+            <Button variant="secondary" onClick={exportDashboard} icon={<Icon name="download" size={14} />}>
+              Export CSV
             </Button>
           </>
         }
@@ -423,55 +504,66 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
       {/* SOURCE HEALTH */}
       <Card>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>
-            Source Health <Icon name="info" size={13} color={C.textDim} />
-          </h3>
-          <Button variant="secondary" icon={<Icon name="refresh" size={14} />}>Refresh All</Button>
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Source Health</h3>
+            {healthChecked && (
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
+                Last checked: {healthChecked.toLocaleTimeString()}
+              </div>
+            )}
+          </div>
+          <Button variant="secondary"
+            disabled={healthLoading}
+            onClick={fetchSourceHealth}
+            icon={<Icon name="refresh" size={14} color={healthLoading ? C.textDim : C.textMuted}
+              style={{ animation: healthLoading ? "spin 1s linear infinite" : "none" }} />}>
+            {healthLoading ? "Checking..." : "Refresh All"}
+          </Button>
         </div>
 
-        <div className="table-scroll"><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-              <th style={thStyle}>SOURCE</th>
-              <th style={thStyle}>STATUS</th>
-              <th style={thStyle}>LOOKUPS</th>
-              <th style={thStyle}>SUCCESS RATE</th>
-              <th style={{ ...thStyle, textAlign: "right" }}>LAST CHECK</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sourceHealth.map((s, i) => (
-              <tr key={i} style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
-                <td style={tdStyle}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 7, overflow: "hidden", background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <img src={`/icons/${s.icon}.png`} alt={s.name} width="20" height="20" style={{ objectFit: "contain", display: "block" }} />
-                    </div>
-                    <span style={{ color: C.text, fontWeight: 500 }}>{s.name}</span>
-                  </span>
-                </td>
-                <td style={tdStyle}>
-                  <Badge color={C.green} bg={C.greenBg}>● {s.status}</Badge>
-                </td>
-                <td style={{ ...tdStyle, color: C.text }}>{s.lookups.toLocaleString()}</td>
-                <td style={tdStyle}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ color: C.text }}>{s.success}%</span>
-                    <span style={{ display: "inline-flex", gap: 2 }}>
-                      {[1, 2, 3, 4, 5].map(d => (
-                        <span key={d} style={{
-                          width: 5, height: 5, borderRadius: "50%",
-                          background: s.success >= d * 19.8 ? C.green : C.border
-                        }} />
-                      ))}
-                    </span>
-                  </span>
-                </td>
-                <td style={{ ...tdStyle, textAlign: "right", color: C.textMuted }}>{s.lastCheck}</td>
+        {sourceHealth.length === 0 ? (
+          <div style={{ padding: "24px 0", textAlign: "center", color: C.textMuted, fontSize: 13 }}>
+            {healthLoading ? "Checking source availability..." : "Click Refresh All to check source status."}
+          </div>
+        ) : (
+          <div className="table-scroll"><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                <th style={thStyle}>SOURCE</th>
+                <th style={thStyle}>STATUS</th>
+                <th style={thStyle}>LOOKUPS</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>LATENCY</th>
               </tr>
-            ))}
-          </tbody>
-        </table></div>
+            </thead>
+            <tbody>
+              {sourceHealth.map((s, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
+                  <td style={tdStyle}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 7, overflow: "hidden", background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <img src={`/icons/${s.icon}.png`} alt={s.name} width="20" height="20" style={{ objectFit: "contain", display: "block" }} />
+                      </div>
+                      <div>
+                        <span style={{ color: C.text, fontWeight: 500 }}>{s.name}</span>
+                        {s.error && <div style={{ fontSize: 10, color: C.red }}>{s.error}</div>}
+                      </div>
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.statusColor, flexShrink: 0 }} />
+                      <span style={{ color: s.statusColor, fontWeight: 500 }}>{s.status}</span>
+                    </span>
+                  </td>
+                  <td style={{ ...tdStyle, color: C.text }}>{s.lookups.toLocaleString()}</td>
+                  <td style={{ ...tdStyle, textAlign: "right", color: s.latency ? C.text : C.textDim }}>
+                    {s.latency ? `${s.latency}ms` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        )}
       </Card>
     </>
   );

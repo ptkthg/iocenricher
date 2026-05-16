@@ -173,8 +173,31 @@ export default function Reports({ history = [] }) {
   const [selectedReport, setSelectedReport] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [generatedReports, setGeneratedReports] = useState([]);
+  const [toastMsg, setToastMsg] = useState(null);
 
   const reports = useMemo(() => buildReportsFromHistory(history, generatedReports), [history, generatedReports]);
+
+  function showToast(msg) {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3500);
+  }
+
+  const mostActiveDay = useMemo(() => {
+    if (history.length === 0) return "—";
+    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const counts = {};
+    history.forEach(h => {
+      const d = DAYS[new Date(h.timestamp || Date.now()).getDay()];
+      counts[d] = (counts[d] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
+  }, [history]);
+
+  const avgRecordsLabel = useMemo(() => {
+    if (reports.length === 0) return "—";
+    const avg = Math.round(reports.reduce((a, r) => a + (r.count || 0), 0) / reports.length);
+    return avg > 0 ? `~${avg} records` : "—";
+  }, [reports]);
 
   const filtered = reports.filter(r => {
     if (filterFormat !== "All" && r.format !== filterFormat) return false;
@@ -210,6 +233,35 @@ export default function Reports({ history = [] }) {
     }, 1500);
   }
 
+  function handleGenerateFromTemplate(template) {
+    if (history.length === 0) { showToast("No history data to generate a report from."); return; }
+    setGenerating(true);
+    setTimeout(() => {
+      const cfgMap = {
+        "IOC Summary": { scope: "All Indicators", data: history, format: "CSV" },
+        "Executive Overview": { scope: "High Risk IOCs", data: history.filter(h => ["CRÍTICO", "ALTO"].includes(h.risk?.level)), format: "JSON" },
+        "Threat Intel Snapshot": { scope: "Top 10 Threats", data: history.filter(h => ["CRÍTICO", "ALTO"].includes(h.risk?.level)).slice(0, 10), format: "JSON" },
+        "Source Health": { scope: "Source Status", data: [], format: "JSON" },
+      };
+      const cfg = cfgMap[template.name] || cfgMap["IOC Summary"];
+      const newReport = {
+        id: `tpl-${Date.now()}`,
+        name: `${template.name} — ${new Date().toLocaleDateString("pt-BR")}`,
+        scope: cfg.scope,
+        format: cfg.format,
+        createdAt: new Date(),
+        status: "Ready",
+        size: `${cfg.data.length} records`,
+        count: cfg.data.length,
+        data: cfg.data,
+        createdBy: "Template",
+      };
+      setGeneratedReports(prev => [newReport, ...prev]);
+      setSelectedReport(newReport);
+      setGenerating(false);
+    }, 1200);
+  }
+
   function exportAll() {
     downloadBlob(JSON.stringify(history, null, 2), "application/json", `ioc-full-export-${Date.now()}.json`);
   }
@@ -222,6 +274,11 @@ export default function Reports({ history = [] }) {
 
   return (
     <>
+      {toastMsg && (
+        <div style={{ position: "fixed", bottom: 28, right: 28, padding: "12px 18px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 6px 24px rgba(0,0,0,0.35)", color: C.text, fontSize: 13, zIndex: 200, maxWidth: 380, lineHeight: 1.5 }}>
+          {toastMsg}
+        </div>
+      )}
       <PageHeader
         title="Reports"
         subtitle="Generate, schedule and export intelligence reports to support investigations and operational decisions."
@@ -231,7 +288,7 @@ export default function Reports({ history = [] }) {
               icon={<Icon name={generating ? "refresh" : "plus"} size={14} color="#fff" />}>
               {generating ? "Generating..." : "Generate Report"}
             </Button>
-            <Button variant="secondary" icon={<Icon name="calendar" size={14} />}>
+            <Button variant="secondary" onClick={() => showToast("Scheduling requires a backend setup — use Export for client-only mode.")} icon={<Icon name="calendar" size={14} />}>
               New Scheduled Report
             </Button>
             <Button variant="secondary" onClick={exportAll} icon={<Icon name="download" size={14} />}>
@@ -402,7 +459,7 @@ export default function Reports({ history = [] }) {
         <Card>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Scheduled Reports</h3>
-            <button style={{ background: "transparent", border: "none", color: C.accentLight, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>View all</button>
+            <span style={{ fontSize: 11, color: C.textDim }}>{SCHEDULED.length} active</span>
           </div>
           {SCHEDULED.map((s, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < SCHEDULED.length - 1 ? `1px solid ${C.borderSubtle}` : "none" }}>
@@ -419,7 +476,7 @@ export default function Reports({ history = [] }) {
               </div>
             </div>
           ))}
-          <Button variant="secondary" style={{ width: "100%", justifyContent: "center", marginTop: 14, fontSize: 12 }}
+          <Button variant="secondary" onClick={() => showToast("Scheduling requires a backend setup — use the Export button to download reports.")} style={{ width: "100%", justifyContent: "center", marginTop: 14, fontSize: 12 }}
             icon={<Icon name="calendar" size={13} />}>
             Manage scheduled reports
           </Button>
@@ -429,7 +486,7 @@ export default function Reports({ history = [] }) {
         <Card>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Report Templates</h3>
-            <button style={{ background: "transparent", border: "none", color: C.accentLight, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>View all</button>
+            <span style={{ fontSize: 11, color: C.textDim }}>{TEMPLATES.length} templates</span>
           </div>
           {TEMPLATES.map((t, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < TEMPLATES.length - 1 ? `1px solid ${C.borderSubtle}` : "none" }}>
@@ -440,12 +497,12 @@ export default function Reports({ history = [] }) {
                 <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 2 }}>{t.name}</div>
                 <div style={{ fontSize: 11, color: C.textMuted }}>{t.desc}</div>
               </div>
-              <Button variant="secondary" style={{ padding: "6px 12px", fontSize: 11, flexShrink: 0 }}>
+              <Button variant="secondary" onClick={() => handleGenerateFromTemplate(t)} disabled={generating} style={{ padding: "6px 12px", fontSize: 11, flexShrink: 0 }}>
                 Use template
               </Button>
             </div>
           ))}
-          <Button variant="secondary" style={{ width: "100%", justifyContent: "center", marginTop: 14, fontSize: 12 }}
+          <Button variant="secondary" onClick={() => showToast("Custom templates coming soon.")} style={{ width: "100%", justifyContent: "center", marginTop: 14, fontSize: 12 }}
             icon={<Icon name="fileText" size={13} />}>
             Manage templates
           </Button>
@@ -456,8 +513,8 @@ export default function Reports({ history = [] }) {
           <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, marginBottom: 16, color: C.text }}>Quick Stats</h3>
           {[
             { label: "Reports this week", value: Math.min(reports.length, 7), icon: "fileText", color: C.accentLight },
-            { label: "Avg. report size", value: "1.3 MB", icon: "database", color: C.purple },
-            { label: "Most active day", value: "Monday", icon: "calendar", color: C.green },
+            { label: "Avg. report size", value: avgRecordsLabel, icon: "database", color: C.purple },
+            { label: "Most active day", value: mostActiveDay, icon: "calendar", color: C.green },
             { label: "Failed reports", value: reports.filter(r => r.status === "Failed").length, icon: "alert", color: C.red },
           ].map((s, i, arr) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.borderSubtle}` : "none" }}>

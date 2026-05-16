@@ -93,6 +93,7 @@ export default function History({ history, setHistory, onNavigate, onInvestigate
   const [sortDir, setSortDir] = useState("desc");
   const [page, setPage] = useState(1);
   const [saved, setSaved] = useState([]);
+  const [showAllSaved, setShowAllSaved] = useState(false);
   const PER_PAGE = 15;
 
   // Derived stats
@@ -419,9 +420,11 @@ export default function History({ history, setHistory, onNavigate, onInvestigate
             <Card>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Saved Investigations</h3>
-                <button style={{ background: "transparent", border: "none", color: C.accentLight, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>View all</button>
+                <button onClick={() => setShowAllSaved(s => !s)} style={{ background: "transparent", border: "none", color: C.accentLight, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                  {showAllSaved ? "Show fewer" : "View all"}
+                </button>
               </div>
-              {saved.slice(0, 4).map((h, i) => {
+              {saved.slice(0, showAllSaved ? undefined : 4).map((h, i) => {
                 const cfg = RISK_CFG[h.risk?.level] || RISK_CFG.BAIXO;
                 return (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${C.borderSubtle}` : "none" }}>
@@ -436,9 +439,11 @@ export default function History({ history, setHistory, onNavigate, onInvestigate
                   </div>
                 );
               })}
-              <button onClick={() => setSaved([])} style={{ width: "100%", marginTop: 12, padding: "8px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.textMuted, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
-                See all bookmarks
-              </button>
+              {saved.length > 4 && (
+                <button onClick={() => setShowAllSaved(s => !s)} style={{ width: "100%", marginTop: 12, padding: "8px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.textMuted, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                  {showAllSaved ? "Show fewer" : `See all ${saved.length} bookmarks`}
+                </button>
+              )}
             </Card>
           )}
         </div>
