@@ -344,62 +344,32 @@ function countryFlag(code) {
   );
 }
 
-// SVG logos for each OSINT source
+// Logos for each OSINT source — real favicons where available, SVG fallbacks for others
+const SOURCE_ICONS = {
+  virustotal:    '/icons/virustotal.png',
+  abuseipdb:     '/icons/abuseipdb.png',
+  ipinfo:        '/icons/ipinfo.png',
+  shodan:        '/icons/shodan.png',
+  urlhaus:       '/icons/urlhaus.png',
+  malwarebazaar: '/icons/malwarebazaar.png',
+  urlscan:       '/icons/urlscan.png',
+  groq:          '/icons/groq.png',
+  hackertarget:  '/icons/hackertarget.png',
+  feodo:         '/icons/feodo.png',
+};
+
 function SourceLogo({ name }) {
-  const logos = {
-    virustotal: (
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <rect width="26" height="26" rx="6" fill="#394EFF" />
-        <path d="M7 8h5l4 10h-3L12 16H9l-1 2H5L7 8z" fill="white" opacity="0.9"/>
-        <path d="M9.5 14h2l-1-3-1 3z" fill="#394EFF"/>
-        <path d="M16 8h3v2h-1v6h1v2h-3v-2h1v-6h-1V8z" fill="white" opacity="0.9"/>
-      </svg>
-    ),
-    ipinfo: (
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <rect width="26" height="26" rx="6" fill="#FF6B35"/>
-        <circle cx="13" cy="10" r="3" fill="white"/>
-        <path d="M13 15c-3.5 0-6 1.5-6 3v1h12v-1c0-1.5-2.5-3-6-3z" fill="white" opacity="0.85"/>
-        <rect x="11.5" y="13" width="3" height="5" rx="1" fill="white"/>
-      </svg>
-    ),
-    urlhaus: (
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <rect width="26" height="26" rx="6" fill="#E8441A"/>
-        <path d="M13 5L5 9v4c0 4.5 3.5 8 8 9 4.5-1 8-4.5 8-9V9L13 5z" fill="white" opacity="0.15"/>
-        <path d="M13 5L5 9v4c0 4.5 3.5 8 8 9 4.5-1 8-4.5 8-9V9L13 5z" stroke="white" strokeWidth="1.5" fill="none"/>
-        <text x="13" y="17" textAnchor="middle" fill="white" fontSize="8" fontWeight="700" fontFamily="monospace">UH</text>
-      </svg>
-    ),
-    malwarebazaar: (
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <rect width="26" height="26" rx="6" fill="#1a1a2e"/>
-        <rect x="1" y="1" width="24" height="24" rx="5" stroke="#f87171" strokeWidth="1" fill="none"/>
-        <circle cx="13" cy="11" r="3.5" stroke="#f87171" strokeWidth="1.5" fill="none"/>
-        <path d="M9 11 Q13 7 17 11" stroke="#f87171" strokeWidth="1.5" fill="none"/>
-        <path d="M10 15 Q13 13 16 15 L17 19H9L10 15z" fill="#f87171" opacity="0.8"/>
-        <circle cx="11" cy="10" r="1" fill="#f87171"/>
-        <circle cx="15" cy="10" r="1" fill="#f87171"/>
-      </svg>
-    ),
-    abuseipdb: (
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <rect width="26" height="26" rx="6" fill="#c0392b"/>
-        <path d="M13 4L5 8v5c0 4.5 3.5 7.5 8 8.5 4.5-1 8-4 8-8.5V8L13 4z" fill="white" opacity="0.15"/>
-        <path d="M13 4L5 8v5c0 4.5 3.5 7.5 8 8.5 4.5-1 8-4 8-8.5V8L13 4z" stroke="white" strokeWidth="1.5" fill="none"/>
-        <rect x="11.5" y="9" width="3" height="6" rx="1.5" fill="white"/>
-        <circle cx="13" cy="17" r="1.5" fill="white"/>
-      </svg>
-    ),
-    shodan: (
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <rect width="26" height="26" rx="6" fill="#cc0000"/>
-        <circle cx="13" cy="13" r="7" stroke="white" strokeWidth="1.5" fill="none"/>
-        <circle cx="13" cy="13" r="4" stroke="white" strokeWidth="1" fill="none" opacity="0.7"/>
-        <circle cx="13" cy="13" r="1.5" fill="white"/>
-        <path d="M13 6v2M13 18v2M6 13h2M18 13h2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    ),
+  if (SOURCE_ICONS[name]) {
+    return (
+      <img
+        src={SOURCE_ICONS[name]}
+        alt={name}
+        width="26" height="26"
+        style={{ borderRadius: 6, objectFit: "contain", display: "block" }}
+      />
+    );
+  }
+  const svgs = {
     passivedns: (
       <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
         <rect width="26" height="26" rx="6" fill="#0891b2"/>
@@ -433,7 +403,7 @@ function SourceLogo({ name }) {
       </svg>
     ),
   };
-  return logos[name] || <span style={{ fontSize: 16 }}>🔍</span>;
+  return svgs[name] || <span style={{ fontSize: 16 }}>🔍</span>;
 }
 
 // Tooltip for info icons
