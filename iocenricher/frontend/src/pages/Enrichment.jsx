@@ -1208,6 +1208,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
         try {
           const API_BASE = import.meta.env.VITE_API_URL || "/api";
           const res = await fetch(`${API_BASE}/threatfeed/search?ip=${encodeURIComponent(input.trim())}`);
+          if (!(res.headers.get("content-type") || "").includes("application/json")) throw new Error("unavailable");
           const tf = await res.json();
           if (tf.found) setThreatMatch(tf.match);
         } catch {}

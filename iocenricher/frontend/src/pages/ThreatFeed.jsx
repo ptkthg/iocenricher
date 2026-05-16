@@ -56,7 +56,7 @@ export default function ThreatFeed() {
 
   useEffect(() => {
     fetch(`${API_BASE}/threatfeed/stats`)
-      .then(r => { if (!r.ok) throw new Error("stats failed"); return r.json(); })
+      .then(r => { if (!r.ok || !(r.headers.get("content-type") || "").includes("application/json")) throw new Error("stats failed"); return r.json(); })
       .then(d => {
         if (d && d.total) { setStats(d); setLastUpdated(d.lastUpdated); }
         else setStatsError(true);
@@ -74,7 +74,7 @@ export default function ThreatFeed() {
       malware: malwareFilter === "All" ? "" : malwareFilter
     });
     fetch(`${API_BASE}/threatfeed/list?${params}`)
-      .then(r => { if (!r.ok) throw new Error("list failed"); return r.json(); })
+      .then(r => { if (!r.ok || !(r.headers.get("content-type") || "").includes("application/json")) throw new Error("list failed"); return r.json(); })
       .then(d => {
         setItems(Array.isArray(d.items) ? d.items : []);
         setTotal(d.total || 0);

@@ -178,6 +178,7 @@ export default function Settings() {
     setRefreshing(true);
     try {
       const res = await fetch(`${API_BASE}/health/sources`);
+      if (!(res.headers.get("content-type") || "").includes("application/json")) throw new Error("unavailable");
       const data = await res.json();
       const map = {};
       data.sources?.forEach(s => { map[s.name] = s; });

@@ -7,11 +7,12 @@ async function safe(fn) {
 }
 
 // Check Feodo Tracker inline — avoids circular dependency with threatfeed.js
+// Uses a short timeout to avoid serverless function timeout on Vercel
 async function checkFeodo(ip) {
   return safe(async () => {
     const { data } = await axios.get(
       'https://feodotracker.abuse.ch/downloads/ipblocklist_aggressive.csv',
-      { timeout: 8000 }
+      { timeout: 4000 }
     );
     const lines = data.split('\n');
     for (const line of lines) {

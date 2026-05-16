@@ -203,6 +203,8 @@ export default function Graph() {
     try {
       const res = await fetch(`${API_BASE}/graph?indicator=${encodeURIComponent(indicator.trim())}`);
       if (!res.ok) throw new Error("Graph request failed");
+      if (!(res.headers.get("content-type") || "").includes("application/json"))
+        throw new Error("Backend indisponível");
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setGraphData(data);
@@ -224,6 +226,8 @@ export default function Graph() {
         body: JSON.stringify({ graphData })
       });
       if (!res.ok) throw new Error('AI summary failed');
+      if (!(res.headers.get("content-type") || "").includes("application/json"))
+        throw new Error("Backend indisponível");
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setAiSummary(data);
