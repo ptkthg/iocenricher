@@ -182,10 +182,10 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
   ];
 
   const sourceHealth = [
-    { name: "VirusTotal", icon: "🛡", status: "Online", lookups: history.filter(h => h.sources?.virustotal).length, success: 99.6, lastCheck: "1 min ago" },
-    { name: "IPinfo", icon: "🌍", status: "Online", lookups: history.filter(h => h.sources?.ipinfo).length, success: 99.9, lastCheck: "1 min ago" },
-    { name: "URLhaus", icon: "🚨", status: "Online", lookups: history.filter(h => h.sources?.urlhaus).length, success: 98.7, lastCheck: "2 min ago" },
-    { name: "MalwareBazaar", icon: "☠", status: "Online", lookups: history.filter(h => h.sources?.malwarebazaar).length, success: 99.1, lastCheck: "2 min ago" },
+    { name: "VirusTotal", icon: "virustotal", status: "Online", lookups: history.filter(h => h.sources?.virustotal).length, success: 99.6, lastCheck: "1 min ago" },
+    { name: "IPinfo", icon: "ipinfo", status: "Online", lookups: history.filter(h => h.sources?.ipinfo).length, success: 99.9, lastCheck: "1 min ago" },
+    { name: "URLhaus", icon: "urlhaus", status: "Online", lookups: history.filter(h => h.sources?.urlhaus).length, success: 98.7, lastCheck: "2 min ago" },
+    { name: "MalwareBazaar", icon: "malwarebazaar", status: "Online", lookups: history.filter(h => h.sources?.malwarebazaar).length, success: 99.1, lastCheck: "2 min ago" },
   ];
 
   return (
@@ -204,6 +204,34 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
           </>
         }
       />
+
+      {/* WELCOME BANNER (only when empty) */}
+      {stats.total === 0 && (
+        <div style={{
+          marginBottom: 24, padding: "24px 28px", borderRadius: 16,
+          background: "linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(167,139,250,0.06) 100%)",
+          border: `1px solid ${C.borderAccent}`,
+          display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap",
+        }}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, overflow: "hidden", flexShrink: 0, boxShadow: `0 4px 16px rgba(59,130,246,0.3)` }}>
+            <img src="/logo.png" alt="IOC Enricher" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 4 }}>Welcome to IOC Enricher</div>
+            <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.6 }}>
+              Start by analyzing an indicator. Your enrichment history and statistics will populate this dashboard automatically.
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+            <Button onClick={() => onNavigate?.("Enrichment")} icon={<Icon name="search" size={14} color="#fff" />}>
+              Analyze an IOC
+            </Button>
+            <Button variant="secondary" onClick={() => onNavigate?.("Bulk Enrichment")} icon={<Icon name="layers" size={14} />}>
+              Bulk Enrichment
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* TOP STATS */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
@@ -415,8 +443,10 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
             {sourceHealth.map((s, i) => (
               <tr key={i} style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
                 <td style={tdStyle}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 16 }}>{s.icon}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, overflow: "hidden", background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <img src={`/icons/${s.icon}.png`} alt={s.name} width="20" height="20" style={{ objectFit: "contain", display: "block" }} />
+                    </div>
                     <span style={{ color: C.text, fontWeight: 500 }}>{s.name}</span>
                   </span>
                 </td>
