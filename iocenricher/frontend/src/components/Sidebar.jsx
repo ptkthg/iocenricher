@@ -150,17 +150,10 @@ export default function Sidebar({ activePage, onNavigate }) {
           height: 34,
           borderRadius: 10,
           flexShrink: 0,
-          background: `linear-gradient(135deg, ${C.accent} 0%, #1d4ed8 100%)`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: `0 4px 16px ${C.accentGlow}, 0 0 0 1px rgba(59,130,246,0.3)`,
+          overflow: "hidden",
+          boxShadow: `0 4px 16px ${C.accentGlow}, 0 0 0 1px rgba(59,130,246,0.25)`,
         }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2L3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z" />
-            <circle cx="12" cy="12" r="3" fill="#fff" />
-            <path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="1" />
-          </svg>
+          <img src="/logo.png" alt="IOC Enricher" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         </div>
         <div style={{
           overflow: "hidden",

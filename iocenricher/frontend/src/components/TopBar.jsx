@@ -68,16 +68,11 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
     }}>
       {/* Logo icon */}
       <div style={{
-        width: 32, height: 32, borderRadius: 9,
-        background: `linear-gradient(135deg, ${C.accent} 0%, #1d4ed8 100%)`,
-        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+        overflow: "hidden",
         boxShadow: `0 4px 12px ${C.accentGlow}`,
       }}>
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2L3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z" />
-          <circle cx="12" cy="12" r="3" fill="#fff" />
-          <path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="1" />
-        </svg>
+        <img src="/logo.png" alt="IOC Enricher" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
       </div>
 
       {/* Search bar */}
