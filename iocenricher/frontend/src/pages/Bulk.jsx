@@ -400,7 +400,28 @@ export default function Bulk() {
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                   >
                     <td style={{ ...tdSt, paddingLeft: 20 }}>
-                      <div style={{ color: C.text, fontWeight: 500 }}>{r.indicator}</div>
+                      <div style={{ color: C.text, fontWeight: 500, fontFamily: "monospace", fontSize: 12 }}>{r.indicator}</div>
+                      {r.sources && (
+                        <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
+                          {[
+                            { key: "virustotal", hit: r.sources.virustotal?.malicious > 0 },
+                            { key: "abuseipdb", hit: r.sources.abuseipdb?.abuse_score >= 20 },
+                            { key: "urlhaus", hit: r.sources.urlhaus?.found },
+                            { key: "malwarebazaar", hit: r.sources.malwarebazaar?.found },
+                            { key: "shodan", hit: !!r.sources.shodan },
+                            { key: "ipinfo", hit: !!r.sources.ipinfo },
+                          ].filter(s => r.sources[s.key] !== undefined).map(s => (
+                            <div key={s.key} title={s.key} style={{
+                              width: 18, height: 18, borderRadius: 4, overflow: "hidden",
+                              opacity: s.hit ? 1 : 0.3,
+                              filter: s.hit ? "none" : "grayscale(100%)",
+                              border: s.hit ? `1px solid ${riskColor(r.risk?.level)}55` : `1px solid ${C.border}`,
+                            }}>
+                              <img src={`/icons/${s.key}.png`} alt={s.key} width="18" height="18" style={{ display: "block", objectFit: "contain" }} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {r.mitre?.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
                           {r.mitre.slice(0, 3).map(t => (

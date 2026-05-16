@@ -406,13 +406,13 @@ export default function Settings() {
 
           <div className="three-col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
             {[
-              { key: "virustotal", name: "VirusTotal", icon: "🛡", detail: "Malware detection · 70+ engines", link: "https://www.virustotal.com" },
-              { key: "ipinfo", name: "IPinfo", icon: "🌍", detail: "Geolocation · ASN · Organization", link: "https://ipinfo.io" },
-              { key: "urlhaus", name: "URLhaus", icon: "🚨", detail: "Malware URLs · No API key needed", link: "https://urlhaus.abuse.ch" },
-              { key: "malwarebazaar", name: "MalwareBazaar", icon: "☠", detail: "Hash lookup · No API key needed", link: "https://bazaar.abuse.ch" },
-              { key: "abuseipdb", name: "AbuseIPDB", icon: "🛑", detail: "IP abuse reports · Crowd-sourced", link: "https://www.abuseipdb.com" },
-              { key: "shodan", name: "Shodan", icon: "📡", detail: "Port scan · CVEs · Banner grabbing", link: "https://www.shodan.io" },
-              { key: "groq", name: "Groq (AI)", icon: "🧠", detail: "Llama 3.3 70B · AI Analysis", link: "https://console.groq.com" },
+              { key: "virustotal", name: "VirusTotal", detail: "Malware detection · 70+ engines", link: "https://www.virustotal.com" },
+              { key: "ipinfo", name: "IPinfo", detail: "Geolocation · ASN · Organization", link: "https://ipinfo.io" },
+              { key: "urlhaus", name: "URLhaus", detail: "Malware URLs · No API key needed", link: "https://urlhaus.abuse.ch" },
+              { key: "malwarebazaar", name: "MalwareBazaar", detail: "Hash lookup · No API key needed", link: "https://bazaar.abuse.ch" },
+              { key: "abuseipdb", name: "AbuseIPDB", detail: "IP abuse reports · Crowd-sourced", link: "https://www.abuseipdb.com" },
+              { key: "shodan", name: "Shodan", detail: "Port scan · CVEs · Banner grabbing", link: "https://www.shodan.io" },
+              { key: "groq", name: "Groq (AI)", detail: "Llama 3.3 70B · AI Analysis", link: "https://console.groq.com" },
             ].map(src => {
               const health = sourceHealth[src.key];
               const isOnline = health?.status === "online";
@@ -423,7 +423,9 @@ export default function Settings() {
                 <Card key={src.key} style={{ padding: 16 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 20 }}>{src.icon}</span>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                        <img src={`/icons/${src.key}.png`} alt={src.name} width="22" height="22" style={{ objectFit: "contain", display: "block" }} />
+                      </div>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{src.name}</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>

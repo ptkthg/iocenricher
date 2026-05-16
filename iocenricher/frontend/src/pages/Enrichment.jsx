@@ -406,6 +406,35 @@ function SourceLogo({ name }) {
   return svgs[name] || <span style={{ fontSize: 16 }}>🔍</span>;
 }
 
+function CopyButton({ text, size = 13 }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  }
+  return (
+    <button
+      onClick={copy}
+      title="Copy to clipboard"
+      style={{
+        background: copied ? "rgba(52,211,153,0.12)" : "transparent",
+        border: `1px solid ${copied ? C.green + "55" : "transparent"}`,
+        borderRadius: 5,
+        padding: "2px 5px",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        transition: "all 0.15s",
+        flexShrink: 0,
+      }}
+    >
+      <Icon name={copied ? "check" : "copy"} size={size} color={copied ? C.green : C.textDim} />
+    </button>
+  );
+}
+
 // Tooltip for info icons
 function InfoTooltip({ text }) {
   const [visible, setVisible] = useState(false);
@@ -1579,9 +1608,9 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <tbody>
                   <DetailRow label="Indicator">
-                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ wordBreak: "break-all" }}>{result.indicator}</span>
-                      <Icon name="copy" size={13} color={C.textDim} />
+                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ wordBreak: "break-all", fontFamily: "monospace" }}>{result.indicator}</span>
+                      <CopyButton text={result.indicator} />
                     </span>
                   </DetailRow>
                   {ipi?.hostname && <DetailRow label="Hostname">{ipi.hostname}</DetailRow>}

@@ -19,12 +19,8 @@ async function hashPassword(password) {
 }
 
 const Logo = () => (
-  <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.accent}, ${C.accentLight})`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", boxShadow: `0 8px 24px ${C.accent}44` }}>
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2L3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z" />
-      <circle cx="12" cy="12" r="3" fill="#fff" />
-      <path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="1" />
-    </svg>
+  <div style={{ width: 56, height: 56, borderRadius: 14, overflow: "hidden", margin: "0 auto 20px", boxShadow: `0 8px 24px ${C.accent}44` }}>
+    <img src="/logo.png" alt="IOC Enricher" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
   </div>
 );
 
@@ -244,15 +240,13 @@ export default function Login({ onLogin }) {
       `}</style>
 
       {/* Left panel — branding (hidden on mobile) */}
-      <div className="login-branding" style={{ flex: 1, flexDirection: "column", justifyContent: "center", padding: "60px 80px", background: `linear-gradient(160deg, ${C.bgCard} 0%, ${C.bg} 100%)`, borderRight: `1px solid ${C.border}` }}>
-        <div style={{ maxWidth: 440 }}>
+      <div className="login-branding" style={{ flex: 1, flexDirection: "column", justifyContent: "center", padding: "60px 80px", background: `linear-gradient(160deg, #040f22 0%, #030d1c 100%)`, borderRight: `1px solid ${C.border}`, position: "relative", overflow: "hidden" }}>
+        {/* Background glow */}
+        <div style={{ position: "absolute", top: "20%", left: "10%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(59,130,246,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ maxWidth: 440, position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 48 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}, ${C.accentLight})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2L3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z" />
-                <circle cx="12" cy="12" r="3" fill="#fff" />
-                <path d="M12 8v8M8 12h8" stroke="#fff" strokeWidth="1" />
-              </svg>
+            <div style={{ width: 42, height: 42, borderRadius: 10, overflow: "hidden", boxShadow: `0 4px 12px ${C.accentGlow}` }}>
+              <img src="/logo.png" alt="IOC Enricher" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>IOC Enricher</div>
@@ -283,7 +277,7 @@ export default function Login({ onLogin }) {
       </div>
 
       {/* Right panel — form */}
-      <div className="login-form" style={{ display: "flex", flexDirection: "column", justifyContent: "center", overflowY: "auto" }}>
+      <div className="login-form" style={{ display: "flex", flexDirection: "column", justifyContent: "center", overflowY: "auto", background: "#040e1e" }}>
         <Logo />
 
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: "0 0 6px", textAlign: "center" }}>
@@ -332,7 +326,6 @@ export default function Login({ onLogin }) {
         </div>
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
