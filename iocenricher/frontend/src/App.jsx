@@ -86,17 +86,19 @@ export default function App() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; }
         body { margin: 0; background: ${C.bg}; font-family: ${FONT}; color: ${C.text}; }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: ${C.borderSubtle}; }
+        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 6px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(96,165,250,0.25); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        .fade-in { animation: fadeIn 0.35s ease-out forwards; }
+        a { color: ${C.accentLight}; text-decoration: none; }
+        a:hover { text-decoration: underline; }
 
         /* ── MOBILE RESPONSIVE ── */
         @media (max-width: 768px) {
