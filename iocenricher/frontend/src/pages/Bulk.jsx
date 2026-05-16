@@ -61,12 +61,15 @@ function csvEscape(value) {
 async function enrichOne(indicator) {
   const type = detectType(indicator);
   try {
-    const params = new URLSearchParams({ indicator, type });
-    const res = await fetch(`${API_BASE}/enrich?${params.toString()}`, {
+    const res = await fetch(`${API_BASE}/enrich`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ indicator, type }),
+      body: JSON.stringify({ indicator }),
     });
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("application/json")) {
+      throw new Error(`Backend indisponível (HTTP ${res.status})`);
+    }
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed");
     return { ...data, indicator, type: data.type || type, timestamp: data.timestamp || new Date().toISOString() };

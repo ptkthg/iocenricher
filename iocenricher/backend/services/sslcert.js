@@ -2,10 +2,15 @@
 const axios = require('axios');
 
 async function getCertificates(domain) {
-  const { data } = await axios.get(`https://crt.sh/?q=${encodeURIComponent(domain)}&output=json`, {
-    timeout: 10000,
-    headers: { 'Accept': 'application/json' }
-  });
+  let data;
+  try {
+    ({ data } = await axios.get(`https://crt.sh/?q=${encodeURIComponent(domain)}&output=json`, {
+      timeout: 10000,
+      headers: { 'Accept': 'application/json' }
+    }));
+  } catch {
+    return { certs: [], found: false };
+  }
   if (!Array.isArray(data)) return { certs: [], found: false };
 
   // Deduplicate by common_name + issuer
