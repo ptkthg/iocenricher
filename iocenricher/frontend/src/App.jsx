@@ -80,7 +80,11 @@ export default function App() {
     }
   }
 
-  if (loading) return null;
+  if (loading) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.bg }}>
+      <div style={{ width: 36, height: 36, borderRadius: "50%", border: `3px solid ${C.border}`, borderTopColor: C.accent, animation: "spin 0.7s linear infinite" }} />
+    </div>
+  );
   if (!user) return <Login onLogin={setUser} />;
 
   return (
