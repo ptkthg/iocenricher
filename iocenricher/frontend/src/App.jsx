@@ -99,9 +99,6 @@ export default function App() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 6px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(96,165,250,0.25); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
-        @keyframes spin { to { transform: rotate(360deg); } }
         .fade-in { animation: fadeIn 0.35s ease-out forwards; }
         a { color: ${C.accentLight}; text-decoration: none; }
         a:hover { text-decoration: underline; }
