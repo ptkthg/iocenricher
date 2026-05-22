@@ -20,6 +20,7 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
   const [notifications, setNotifications] = useState([]);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
+  const searchRef = useRef(null);
 
   const displayName = user?.name || "Patrick Thiago";
   const email = user?.email || "ptkamp1@gmail.com";
@@ -28,6 +29,21 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
 
   useClickOutside(notifRef, () => setNotifOpen(false));
   useClickOutside(profileRef, () => setProfileOpen(false));
+
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  const shortcutLabel = isMac ? "⌘ K" : "Ctrl K";
 
   useEffect(() => {
     try {
@@ -81,6 +97,7 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
           <Icon name="search" size={15} color={C.textDim} />
         </div>
         <input
+          ref={searchRef}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && query.trim()) { onSearch?.(query.trim()); setQuery(""); } }}
@@ -111,7 +128,7 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
           fontSize: 10, fontWeight: 600, color: C.textDim,
           padding: "2px 6px", border: `1px solid ${C.border}`, borderRadius: 5,
           fontFamily: FONT, background: "rgba(255,255,255,0.02)",
-        }}>⌘ K</span>
+        }}>{shortcutLabel}</span>
       </div>
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
