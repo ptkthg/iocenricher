@@ -19,7 +19,7 @@ app.use(express.json());
 const limiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
-  message: { error: 'Muitas requisições. Aguarde 1 minuto.' }
+  message: { error: 'Too many requests. Please wait 1 minute and try again.' }
 });
 app.use('/api/', limiter);
 
