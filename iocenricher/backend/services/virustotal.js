@@ -3,7 +3,7 @@ const BASE = 'https://www.virustotal.com/api/v3';
 const headers = () => ({ 'x-apikey': process.env.VIRUSTOTAL_API_KEY });
 
 async function enrichIP(ip) {
-  const { data } = await axios.get(`${BASE}/ip_addresses/${ip}`, { headers: headers() });
+  const { data } = await axios.get(`${BASE}/ip_addresses/${ip}`, { headers: headers(), timeout: 12000 });
   const attr = data.data.attributes;
   return {
     malicious: attr.last_analysis_stats.malicious,
@@ -18,7 +18,7 @@ async function enrichIP(ip) {
 }
 
 async function enrichHash(hash) {
-  const { data } = await axios.get(`${BASE}/files/${hash}`, { headers: headers() });
+  const { data } = await axios.get(`${BASE}/files/${hash}`, { headers: headers(), timeout: 12000 });
   const attr = data.data.attributes;
   return {
     malicious: attr.last_analysis_stats.malicious,
@@ -34,7 +34,7 @@ async function enrichHash(hash) {
 }
 
 async function enrichDomain(domain) {
-  const { data } = await axios.get(`${BASE}/domains/${domain}`, { headers: headers() });
+  const { data } = await axios.get(`${BASE}/domains/${domain}`, { headers: headers(), timeout: 12000 });
   const attr = data.data.attributes;
   return {
     malicious: attr.last_analysis_stats.malicious,
@@ -49,7 +49,7 @@ async function enrichDomain(domain) {
 
 async function enrichURL(url) {
   const encoded = Buffer.from(url).toString('base64').replace(/=/g, '');
-  const { data } = await axios.get(`${BASE}/urls/${encoded}`, { headers: headers() });
+  const { data } = await axios.get(`${BASE}/urls/${encoded}`, { headers: headers(), timeout: 12000 });
   const attr = data.data.attributes;
   return {
     malicious: attr.last_analysis_stats.malicious,

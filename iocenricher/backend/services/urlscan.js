@@ -2,13 +2,13 @@ const axios = require('axios');
 
 async function scanURL(url) {
   try {
-    const submit = await axios.post('https://urlscan.io/api/v1/scan/', 
+    const submit = await axios.post('https://urlscan.io/api/v1/scan/',
       { url, visibility: 'public' },
-      { headers: { 'API-Key': process.env.URLSCAN_API_KEY, 'Content-Type': 'application/json' } }
+      { headers: { 'API-Key': process.env.URLSCAN_API_KEY, 'Content-Type': 'application/json' }, timeout: 12000 }
     );
     const uuid = submit.data.uuid;
     await new Promise(r => setTimeout(r, 10000));
-    const { data } = await axios.get(`https://urlscan.io/api/v1/result/${uuid}/`);
+    const { data } = await axios.get(`https://urlscan.io/api/v1/result/${uuid}/`, { timeout: 12000 });
     return {
       uuid,
       screenshot: `https://urlscan.io/screenshots/${uuid}.png`,

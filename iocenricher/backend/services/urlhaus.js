@@ -7,9 +7,9 @@ const headers = () => ({
 });
 
 async function checkURL(url) {
-  const { data } = await axios.post(`${BASE}/url/`, 
-    new URLSearchParams({ url }), 
-    { headers: headers() }
+  const { data } = await axios.post(`${BASE}/url/`,
+    new URLSearchParams({ url }),
+    { headers: headers(), timeout: 12000 }
   );
   if (data.query_status !== 'ok') return { found: false };
   return {
@@ -29,9 +29,9 @@ async function checkURL(url) {
 }
 
 async function checkHostname(host) {
-  const { data } = await axios.post(`${BASE}/host/`, 
-    new URLSearchParams({ host }), 
-    { headers: headers() }
+  const { data } = await axios.post(`${BASE}/host/`,
+    new URLSearchParams({ host }),
+    { headers: headers(), timeout: 12000 }
   );
   if (data.query_status !== 'ok') return { found: false };
   return {
@@ -50,9 +50,9 @@ async function checkHostname(host) {
 
 async function checkPayloadHash(hash) {
   const field = hash.length === 64 ? 'sha256_hash' : 'md5_hash';
-  const { data } = await axios.post(`${BASE}/payload/`, 
-    new URLSearchParams({ [field]: hash }), 
-    { headers: headers() }
+  const { data } = await axios.post(`${BASE}/payload/`,
+    new URLSearchParams({ [field]: hash }),
+    { headers: headers(), timeout: 12000 }
   );
   if (data.query_status !== 'ok') return { found: false };
   return {

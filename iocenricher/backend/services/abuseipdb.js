@@ -3,7 +3,8 @@ const axios = require('axios');
 async function enrichIP(ip) {
   const { data } = await axios.get('https://api.abuseipdb.com/api/v2/check', {
     headers: { Key: process.env.ABUSEIPDB_API_KEY, Accept: 'application/json' },
-    params: { ipAddress: ip, maxAgeInDays: 90, verbose: true }
+    params: { ipAddress: ip, maxAgeInDays: 90, verbose: true },
+    timeout: 12000,
   });
   const d = data.data;
   return {
