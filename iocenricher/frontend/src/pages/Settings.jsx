@@ -397,7 +397,7 @@ export default function Settings() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {[
                 ["Version", "1.0.0"],
-                ["Environment", "Development"],
+                ["Environment", import.meta.env.MODE],
                 ["Backend", "http://localhost:3001"],
                 ["Storage", "localStorage"],
                 ["Author", "Patrick Thiago Rezende dos Santos"],
@@ -414,7 +414,7 @@ export default function Settings() {
               <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>Backend URL</div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Input
-                  value={settings.backendUrl || "http://localhost:3001"}
+                  value={settings.backendUrl || import.meta.env.VITE_API_URL || "/api"}
                   onChange={e => update("backendUrl", e.target.value)}
                   style={{ flex: 1, fontSize: 12 }}
                 />
@@ -527,7 +527,6 @@ export default function Settings() {
                       <span style={{ width: 24, height: 14, borderRadius: 3, background: row.color, display: "inline-block" }} />
                     </td>
                     <td style={{ ...tdSt, textAlign: "right" }}>
-                      <Icon name="edit" size={14} color={C.textDim} style={{ cursor: "pointer" }} />
                     </td>
                   </tr>
                 ))}
