@@ -1,45 +1,80 @@
 export const C = {
-  bg: "#030d1c",
-  bgSidebar: "#040e1e",
-  bgCard: "#081628",
-  bgCardHover: "#0c1e36",
-  bgInput: "#050f1e",
-  border: "#132030",
-  borderSubtle: "#0c1828",
-  borderAccent: "rgba(96,165,250,0.18)",
-  text: "#e4ecff",
-  textMuted: "#6b85a8",
-  textDim: "#374f68",
-  accent: "#3b82f6",
-  accentLight: "#60a5fa",
-  accentDark: "#1d4ed8",
-  accentGlow: "rgba(59,130,246,0.14)",
-  red: "#f87171",
-  redBg: "rgba(248,113,113,0.08)",
-  redGlow: "rgba(248,113,113,0.18)",
-  orange: "#fb923c",
-  orangeBg: "rgba(251,146,60,0.08)",
-  orangeGlow: "rgba(251,146,60,0.18)",
-  yellow: "#fbbf24",
-  yellowBg: "rgba(251,191,36,0.08)",
-  green: "#34d399",
-  greenBg: "rgba(52,211,153,0.08)",
-  greenGlow: "rgba(52,211,153,0.18)",
-  purple: "#a78bfa",
-  purpleBg: "rgba(167,139,250,0.08)",
-  purpleGlow: "rgba(167,139,250,0.18)",
-  cyan: "#22d3ee",
-  cyanBg: "rgba(34,211,238,0.08)",
+  bg:           "var(--c-bg)",
+  bgSidebar:    "var(--c-bg-sidebar)",
+  bgCard:       "var(--c-bg-card)",
+  bgCardHover:  "var(--c-bg-card-hover)",
+  bgInput:      "var(--c-bg-input)",
+
+  border:       "var(--c-border)",
+  borderSubtle: "var(--c-border-subtle)",
+  borderAccent: "var(--c-border-accent)",
+
+  text:         "var(--c-text)",
+  textMuted:    "var(--c-text-muted)",
+  textDim:      "var(--c-text-dim)",
+
+  accent:       "var(--c-accent)",
+  accentLight:  "var(--c-accent-light)",
+  accentDark:   "var(--c-accent-dark)",
+  accentGlow:   "var(--c-accent-glow)",
+  accentBorder: "var(--c-accent-border)",
+
+  red:          "var(--c-red)",
+  redBg:        "var(--c-red-bg)",
+  redGlow:      "var(--c-red-glow)",
+  redBorder:    "var(--c-red-border)",
+
+  orange:       "var(--c-orange)",
+  orangeBg:     "var(--c-orange-bg)",
+  orangeGlow:   "var(--c-orange-glow)",
+  orangeBorder: "var(--c-orange-border)",
+
+  yellow:       "var(--c-yellow)",
+  yellowBg:     "var(--c-yellow-bg)",
+  yellowBorder: "var(--c-yellow-border)",
+
+  green:        "var(--c-green)",
+  greenBg:      "var(--c-green-bg)",
+  greenGlow:    "var(--c-green-glow)",
+  greenBorder:  "var(--c-green-border)",
+
+  purple:       "var(--c-purple)",
+  purpleBg:     "var(--c-purple-bg)",
+  purpleGlow:   "var(--c-purple-glow)",
+  purpleBorder: "var(--c-purple-border)",
+
+  cyan:         "var(--c-cyan)",
+  cyanBg:       "var(--c-cyan-bg)",
+  cyanBorder:   "var(--c-cyan-border)",
 };
 
 export const FONT = `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif`;
 
 export const RISK_CFG = {
-  CRÍTICO: { color: C.red, bg: C.redBg, glow: C.redGlow, label: "MALICIOUS", text: "High Risk", confidence: "High confidence of malicious activity" },
-  ALTO:    { color: C.orange, bg: C.orangeBg, glow: C.orangeGlow, label: "SUSPICIOUS", text: "Elevated Risk", confidence: "Multiple suspicious indicators detected" },
-  MÉDIO:   { color: C.yellow, bg: C.yellowBg, glow: "rgba(251,191,36,0.18)", label: "MONITOR", text: "Medium Risk", confidence: "Some suspicious activity observed" },
-  BAIXO:   { color: C.green, bg: C.greenBg, glow: C.greenGlow, label: "CLEAN", text: "Low Risk", confidence: "No malicious activity detected" },
+  CRÍTICO: { color: C.red,    bg: C.redBg,    glow: C.redGlow,    label: "MALICIOUS",  text: "High Risk",      confidence: "High confidence of malicious activity" },
+  ALTO:    { color: C.orange, bg: C.orangeBg, glow: C.orangeGlow, label: "SUSPICIOUS", text: "Elevated Risk",  confidence: "Multiple suspicious indicators detected" },
+  MÉDIO:   { color: C.yellow, bg: C.yellowBg, glow: "var(--c-yellow-glow)", label: "MONITOR",    text: "Medium Risk",    confidence: "Some suspicious activity observed" },
+  BAIXO:   { color: C.green,  bg: C.greenBg,  glow: C.greenGlow,  label: "CLEAN",      text: "Low Risk",       confidence: "No malicious activity detected" },
 };
+
+// Lookup helpers — use when you need the matching bg/border for a semantic color
+export function colorBg(c) {
+  const map = {
+    [C.red]: C.redBg, [C.orange]: C.orangeBg, [C.yellow]: C.yellowBg,
+    [C.green]: C.greenBg, [C.purple]: C.purpleBg, [C.cyan]: C.cyanBg,
+    [C.accent]: C.accentGlow, [C.accentLight]: C.accentGlow,
+  };
+  return map[c] || C.accentGlow;
+}
+
+export function colorBorder(c) {
+  const map = {
+    [C.red]: C.redBorder, [C.orange]: C.orangeBorder, [C.yellow]: C.yellowBorder,
+    [C.green]: C.greenBorder, [C.purple]: C.purpleBorder, [C.cyan]: C.cyanBorder,
+    [C.accent]: C.accentBorder, [C.accentLight]: C.accentBorder,
+  };
+  return map[c] || C.accentBorder;
+}
 
 export function timeAgo(ts) {
   if (!ts) return "—";

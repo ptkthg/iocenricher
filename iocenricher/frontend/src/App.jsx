@@ -23,6 +23,16 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pendingIndicator, setPendingIndicator] = useState(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem("iocenricher_theme") || "dark");
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("iocenricher_theme", theme);
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme(t => t === "dark" ? "light" : "dark");
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem("iocenricher_user");
@@ -98,7 +108,7 @@ export default function App() {
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 6px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(96,165,250,0.25); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--c-accent-border); }
         .fade-in { animation: fadeIn 0.35s ease-out forwards; }
         a { color: ${C.accentLight}; text-decoration: none; }
         a:hover { text-decoration: underline; }
@@ -181,7 +191,7 @@ export default function App() {
         <Sidebar activePage={activePage} onNavigate={setActivePage} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div className="app-topbar">
-            <TopBar user={user} onLogout={handleLogout} onSearch={navigateToEnrichment} onNavigate={setActivePage} />
+            <TopBar user={user} onLogout={handleLogout} onSearch={navigateToEnrichment} onNavigate={setActivePage} theme={theme} onToggleTheme={toggleTheme} />
           </div>
           <div className="app-content" style={{ flex: 1, padding: 28, overflow: "auto", paddingBottom: 80 }}>
             {renderPage()}

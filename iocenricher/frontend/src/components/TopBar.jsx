@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { C, FONT, timeAgo } from "../lib/theme";
+import { C, FONT, timeAgo, colorBg, colorBorder } from "../lib/theme";
 import Icon from "./Icon";
 
 function useClickOutside(ref, handler) {
@@ -13,7 +13,7 @@ function useClickOutside(ref, handler) {
   }, [ref, handler]);
 }
 
-export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
+export default function TopBar({ onSearch, user, onLogout, onNavigate, theme, onToggleTheme }) {
   const [query, setQuery] = useState("");
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -74,7 +74,7 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
       display: "flex",
       alignItems: "center",
       gap: 16,
-      background: "rgba(3,13,28,0.92)",
+      background: C.bgSidebar,
       backdropFilter: "blur(20px)",
       WebkitBackdropFilter: "blur(20px)",
       position: "sticky",
@@ -105,7 +105,7 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
           style={{
             width: "100%",
             padding: "9px 56px 9px 38px",
-            background: "rgba(5,15,30,0.8)",
+            background: C.bgInput,
             border: `1px solid ${C.border}`,
             borderRadius: 10,
             color: C.text,
@@ -159,7 +159,7 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
                 position: "absolute", top: 5, right: 5,
                 width: 8, height: 8, borderRadius: "50%",
                 background: C.red,
-                border: `2px solid #030d1c`,
+                border: `2px solid ${C.bg}`,
                 boxShadow: `0 0 6px ${C.red}`,
               }} />
             )}
@@ -168,10 +168,10 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
           {notifOpen && (
             <div className="notif-dropdown" style={{
               position: "absolute", top: "calc(100% + 10px)", right: 0, width: 340,
-              background: "#081628",
+              background: C.bgCard,
               border: `1px solid ${C.border}`,
               borderRadius: 14,
-              boxShadow: "0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(96,165,250,0.06)",
+              boxShadow: "var(--shadow-card-hover)",
               zIndex: 200, overflow: "hidden",
             }}>
               <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -191,7 +191,7 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
                       onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                     >
-                      <div style={{ width: 32, height: 32, borderRadius: 9, background: `${n.color}15`, border: `1px solid ${n.color}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 9, background: colorBg(n.color), border: `1px solid ${colorBorder(n.color)}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <Icon name="alert" size={14} color={n.color} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -213,6 +213,30 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
           )}
         </div>
 
+        {/* Theme toggle */}
+        <button
+          onClick={onToggleTheme}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          style={{
+            background: "transparent",
+            border: `1px solid ${C.border}`,
+            borderRadius: 9,
+            cursor: "pointer",
+            color: C.textMuted,
+            padding: "7px 8px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.15s ease",
+            fontSize: 15,
+            lineHeight: 1,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.text; e.currentTarget.style.background = C.accentGlow; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMuted; e.currentTarget.style.background = "transparent"; }}
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
+
         {/* Divider */}
         <div style={{ width: 1, height: 24, background: C.border }} />
 
@@ -233,8 +257,8 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
           >
             <div style={{
               width: 32, height: 32, borderRadius: "50%",
-              background: isGuest ? C.bgInput : `linear-gradient(135deg, ${C.accent}, #1d4ed8)`,
-              border: isGuest ? `1px solid ${C.border}` : `2px solid rgba(96,165,250,0.3)`,
+              background: isGuest ? C.bgInput : `linear-gradient(135deg, var(--c-accent), var(--c-accent-dark))`,
+              border: isGuest ? `1px solid ${C.border}` : `2px solid ${C.accentBorder}`,
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 12, fontWeight: 700, color: isGuest ? C.textMuted : "#fff",
               boxShadow: isGuest ? "none" : `0 0 12px ${C.accentGlow}`,
@@ -254,22 +278,22 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
           {profileOpen && (
             <div style={{
               position: "absolute", top: "calc(100% + 10px)", right: 0, width: 220,
-              background: "#081628",
+              background: C.bgCard,
               border: `1px solid ${C.border}`,
               borderRadius: 14,
-              boxShadow: "0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(96,165,250,0.06)",
+              boxShadow: "var(--shadow-card-hover)",
               zIndex: 200, overflow: "hidden",
             }}>
               <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: isGuest ? C.bgInput : `linear-gradient(135deg, ${C.accent}, #1d4ed8)`, border: isGuest ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: isGuest ? C.textMuted : "#fff" }}>{initials}</div>
+                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: isGuest ? C.bgInput : `linear-gradient(135deg, var(--c-accent), var(--c-accent-dark))`, border: isGuest ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: isGuest ? C.textMuted : "#fff" }}>{initials}</div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{isGuest ? "Guest User" : displayName}</div>
                     <div style={{ fontSize: 11, color: C.textMuted }}>{isGuest ? "No account" : email}</div>
                   </div>
                 </div>
                 {isGuest && (
-                  <button onClick={() => { onLogout(); setProfileOpen(false); }} style={{ marginTop: 10, width: "100%", padding: "8px", background: `linear-gradient(135deg, ${C.accent}, #1d4ed8)`, border: "none", borderRadius: 8, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                  <button onClick={() => { onLogout(); setProfileOpen(false); }} style={{ marginTop: 10, width: "100%", padding: "8px", background: `linear-gradient(135deg, var(--c-accent), var(--c-accent-dark))`, border: "none", borderRadius: 8, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
                     Create Account / Sign In
                   </button>
                 )}
@@ -310,8 +334,10 @@ export default function TopBar({ onSearch, user, onLogout, onNavigate }) {
 function Badge({ children, color }) {
   return (
     <span style={{
-      fontSize: 10, fontWeight: 700, background: `${color}15`, color,
-      padding: "2px 8px", borderRadius: 10, border: `1px solid ${color}25`,
+      fontSize: 10, fontWeight: 700,
+      background: colorBg(color), color,
+      padding: "2px 8px", borderRadius: 10,
+      border: `1px solid ${colorBorder(color)}`,
       letterSpacing: "0.03em",
     }}>{children}</span>
   );

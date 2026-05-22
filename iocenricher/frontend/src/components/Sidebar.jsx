@@ -17,7 +17,7 @@ function Tooltip({ label, children }) {
           left: rect.right + 10,
           top: rect.top + rect.height / 2,
           transform: "translateY(-50%)",
-          background: "#0c1e36",
+          background: C.bgCard,
           color: C.text,
           padding: "6px 12px",
           borderRadius: 8,
@@ -26,7 +26,7 @@ function Tooltip({ label, children }) {
           whiteSpace: "nowrap",
           zIndex: 9999,
           border: `1px solid ${C.borderAccent}`,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(96,165,250,0.08)",
+          boxShadow: "var(--shadow-card-hover)",
           pointerEvents: "none",
           fontFamily: FONT,
         }}>
@@ -48,9 +48,7 @@ function NavItem({ icon, label, active, onClick, collapsed }) {
         width: "100%",
         padding: collapsed ? "10px 0" : "10px 12px",
         justifyContent: collapsed ? "center" : "flex-start",
-        background: active
-          ? `linear-gradient(90deg, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 100%)`
-          : "transparent",
+        background: active ? "rgba(99,102,241,0.10)" : "transparent",
         border: "none",
         borderRadius: 10,
         borderLeft: active ? `2px solid ${C.accentLight}` : "2px solid transparent",
@@ -62,7 +60,7 @@ function NavItem({ icon, label, active, onClick, collapsed }) {
         transition: "all 0.15s ease",
         fontWeight: active ? 600 : 400,
         overflow: "hidden",
-        boxShadow: active ? `inset 0 0 20px ${C.accentGlow}` : "none",
+        boxShadow: "none",
         marginLeft: active ? 0 : 2,
       }}
       onMouseEnter={e => {
@@ -118,7 +116,7 @@ export default function Sidebar({ activePage, onNavigate }) {
       className="app-sidebar"
       style={{
         width: collapsed ? 64 : 228,
-        background: `linear-gradient(180deg, #040f22 0%, #030d1c 100%)`,
+        background: C.bgSidebar,
         borderRight: `1px solid ${C.border}`,
         display: "flex",
         flexDirection: "column",
@@ -151,7 +149,7 @@ export default function Sidebar({ activePage, onNavigate }) {
           borderRadius: 10,
           flexShrink: 0,
           overflow: "hidden",
-          boxShadow: `0 4px 16px ${C.accentGlow}, 0 0 0 1px rgba(59,130,246,0.25)`,
+          boxShadow: `0 4px 16px ${C.accentGlow}, 0 0 0 1px rgba(99,102,241,0.25)`,
         }}>
           <img src="/logo.png" alt="IOC Enricher" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         </div>
