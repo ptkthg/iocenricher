@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { C, FONT } from "./lib/theme";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { getHistory } from "./lib/api";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
@@ -88,6 +89,7 @@ export default function App() {
   if (!user) return <Login onLogin={setUser} />;
 
   return (
+    <ErrorBoundary>
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -236,5 +238,6 @@ export default function App() {
         </div>
       </div>
     </>
+    </ErrorBoundary>
   );
 }
