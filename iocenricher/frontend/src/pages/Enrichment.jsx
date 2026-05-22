@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { C, FONT, RISK_CFG, timeAgo, fmtDate, detectType } from "../lib/theme";
+import { C, FONT, RISK_CFG, timeAgo, fmtDate, detectType, colorBg, colorBorder } from "../lib/theme";
 import { enrichIndicator, getHistory, addToHistory } from "../lib/api";
 import Icon from "../components/Icon";
 import { Card, Badge, Button, Input, PageHeader } from "../components/UI";
@@ -876,9 +876,9 @@ function VerdictBanner({ result, risk }) {
         </div>
         <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6, marginBottom: 8 }}>{reason}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Badge color={color} bg={`${color}18`}>Score {risk.score}/100</Badge>
-          <Badge color={color} bg={`${color}18`}>{risk.level}</Badge>
-          <Badge color={color} bg={`${color}18`}>{result.recommendation}</Badge>
+          <Badge color={color} bg={colorBg(color)}>Score {risk.score}/100</Badge>
+          <Badge color={color} bg={colorBg(color)}>{risk.level}</Badge>
+          <Badge color={color} bg={colorBg(color)}>{result.recommendation}</Badge>
           {vt?.malicious > 0 && <Badge color={C.red} bg={C.redBg}>{vt.malicious} AV detections</Badge>}
           {ab?.abuse_score > 0 && <Badge color={C.orange} bg={C.orangeBg}>{ab.abuse_score}% abuse</Badge>}
         </div>
