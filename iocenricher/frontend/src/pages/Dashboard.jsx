@@ -262,6 +262,19 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
     { label: "Low", value: stats.byLevel.BAIXO, color: C.green, pct: stats.total ? (stats.byLevel.BAIXO / stats.total * 100).toFixed(1) : 0 },
   ];
 
+  const sourcesOnline = useMemo(() => {
+    if (sourceHealth.length === 0) return { value: "— / —", footer: "Click Refresh All to check", color: C.textMuted, bg: "rgba(136,150,173,0.08)" };
+    const online = sourceHealth.filter(s => s.status === "Online").length;
+    const total = sourceHealth.length;
+    const pct = Math.round((online / total) * 100);
+    return {
+      value: `${online} / ${total}`,
+      footer: `${pct}% availability`,
+      color: pct === 100 ? C.green : pct >= 50 ? C.orange : C.red,
+      bg: pct === 100 ? C.greenBg : pct >= 50 ? C.orangeBg : C.redBg,
+    };
+  }, [sourceHealth]);
+
   return (
     <>
       <PageHeader
@@ -348,11 +361,11 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
         />
         <StatBox
           label="Sources Online"
-          value="4 / 4"
-          footer="100% availability"
-          icon={<Icon name="server" size={20} color={C.green} />}
-          iconColor={C.green}
-          iconBg={C.greenBg}
+          value={sourcesOnline.value}
+          footer={sourcesOnline.footer}
+          icon={<Icon name="server" size={20} color={sourcesOnline.color} />}
+          iconColor={sourcesOnline.color}
+          iconBg={sourcesOnline.bg}
         />
       </div>
 
