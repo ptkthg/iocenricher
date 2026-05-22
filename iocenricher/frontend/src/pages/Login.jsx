@@ -96,17 +96,10 @@ function SignIn({ onLogin, onSwitch }) {
     try {
       const accounts = getAccounts();
       const hashed = await hashPassword(password);
-
-      // Check stored accounts
       const match = accounts.find(a => a.email.toLowerCase() === email.toLowerCase() && a.passwordHash === hashed);
 
-      // Legacy fallback: ptkamp1@gmail.com with any 4+ char password
-      const isLegacy = email.toLowerCase() === "ptkamp1@gmail.com" && password.length >= 4 && !match;
-
-      if (match || isLegacy) {
-        const user = match
-          ? { email: match.email, name: match.name, role: match.role || "Analista SOC" }
-          : { email, name: "Patrick Thiago", role: "Analista SOC" };
+      if (match) {
+        const user = { email: match.email, name: match.name, role: match.role || "Analista SOC" };
         localStorage.setItem(USER_KEY, JSON.stringify(user));
         localStorage.setItem(SESSION_KEY, Date.now().toString());
         onLogin(user);
