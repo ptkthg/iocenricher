@@ -200,22 +200,29 @@ export default function App() {
         <div className="mobile-nav" style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200,
           background: C.bgCard, borderTop: `1px solid ${C.border}`,
-          display: "none", alignItems: "center", justifyContent: "space-around",
-          padding: "8px 0 12px", boxShadow: "0 -4px 20px rgba(0,0,0,0.3)"
+          display: "none", alignItems: "center",
+          overflowX: "auto", WebkitOverflowScrolling: "touch",
+          padding: "8px 12px 12px", gap: 4,
+          boxShadow: "0 -4px 20px rgba(0,0,0,0.3)",
         }}>
           {[
-            { page: "Dashboard", icon: "dashboard", label: "Home" },
-            { page: "Enrichment", icon: "search", label: "Analyze" },
-            { page: "Bulk Enrichment", icon: "layers", label: "Bulk" },
-            { page: "History", icon: "history", label: "History" },
-            { page: "Settings", icon: "settings", label: "More" },
+            { page: "Dashboard",       icon: "dashboard", label: "Home"     },
+            { page: "Enrichment",      icon: "search",    label: "Analyze"  },
+            { page: "Bulk Enrichment", icon: "layers",    label: "Bulk"     },
+            { page: "Threat Feed",     icon: "alert",     label: "Threats"  },
+            { page: "Phishing",        icon: "mail",      label: "Phishing" },
+            { page: "Graph",           icon: "target",    label: "Graph"    },
+            { page: "History",         icon: "history",   label: "History"  },
+            { page: "Reports",         icon: "reports",   label: "Reports"  },
+            { page: "Settings",        icon: "settings",  label: "Settings" },
           ].map(item => {
             const active = activePage === item.page;
             return (
               <button key={item.page} onClick={() => setActivePage(item.page)} style={{
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                 background: "transparent", border: "none", cursor: "pointer",
-                padding: "4px 12px", borderRadius: 8
+                padding: "4px 8px", borderRadius: 8,
+                flexShrink: 0, minWidth: 56,
               }}>
                 <div style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Icon name={item.icon} size={20} color={active ? C.accentLight : C.textDim} />
