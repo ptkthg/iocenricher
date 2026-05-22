@@ -262,6 +262,8 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
     { label: "Low", value: stats.byLevel.BAIXO, color: C.green, pct: stats.total ? (stats.byLevel.BAIXO / stats.total * 100).toFixed(1) : 0 },
   ];
 
+  const rangeLabel = days === 0 ? "All time" : `Last ${days}d`;
+
   const sourcesOnline = useMemo(() => {
     if (sourceHealth.length === 0) return { value: "— / —", footer: "Click Refresh All to check", color: C.textMuted, bg: "rgba(136,150,173,0.08)" };
     const online = sourceHealth.filter(s => s.status === "Online").length;
@@ -330,7 +332,7 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
       {/* TOP STATS */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
         <StatBox
-          label="Total Lookups (7d)"
+          label={`Total Lookups (${rangeLabel})`}
           value={stats.total.toLocaleString()}
           change={stats.total > 0 ? "0%" : null}
           changeType="up"
@@ -375,7 +377,7 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
         <Card>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Lookups Over Time</h3>
-            <Badge color={C.accentLight} bg="rgba(59, 130, 246, 0.15)">Last 7 days</Badge>
+            <Badge color={C.accentLight} bg="rgba(59, 130, 246, 0.15)">{rangeLabel}</Badge>
           </div>
           {stats.total > 0 ? (
             <AreaChart data={timeline} color={C.accent} />
@@ -420,7 +422,7 @@ export default function Dashboard({ history, onNavigate, onInvestigate }) {
           <TriageItem icon="target" iconColor={C.accentLight} label="To Investigate" value={stats.byAction.INVESTIGAR} />
           <TriageItem icon="eye" iconColor={C.orange} label="To Monitor" value={stats.byAction.MONITORAR} />
           <TriageItem icon="check" iconColor={C.textMuted} label="Ignored" value={stats.byAction.IGNORAR} last />
-          <div style={{ fontSize: 11, color: C.textDim, marginTop: 16 }}>Last 7 days</div>
+          <div style={{ fontSize: 11, color: C.textDim, marginTop: 16 }}>{rangeLabel}</div>
         </Card>
       </div>
 
