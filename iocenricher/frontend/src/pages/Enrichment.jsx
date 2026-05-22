@@ -123,7 +123,7 @@ function ActionRow({ icon, iconColor, iconBg, title, desc, btnLabel, btnColor, b
         style={{
           padding: "7px 18px", borderRadius: 8,
           background: active || done ? btnBg : "transparent",
-          border: `1px solid ${active || done ? btnColor : btnColor + "66"}`,
+          border: `1px solid ${active || done ? btnColor : colorBorder(btnColor)}`,
           color: btnColor, fontSize: 12, fontFamily: FONT, fontWeight: active ? 600 : 500,
           cursor: "pointer", flexShrink: 0, transition: "all 0.2s",
           display: "flex", alignItems: "center", gap: 6
@@ -1679,7 +1679,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
                         </span>
                       </td>
                       <td style={{ padding: "12px 0" }}>
-                        <Badge color={s.resultColor} bg={`${s.resultColor}11`}>{s.result}</Badge>
+                        <Badge color={s.resultColor} bg={colorBg(s.resultColor)}>{s.result}</Badge>
                       </td>
                       <td style={{ padding: "12px 0" }}><Confidence level={s.conf} /></td>
                       <td style={{ padding: "12px 0", textAlign: "right", color: C.textMuted }}>{s.time}</td>
