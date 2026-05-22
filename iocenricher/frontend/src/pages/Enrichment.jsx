@@ -93,7 +93,7 @@ function TypePill({ label, active, onClick }) {
   return (
     <button onClick={onClick} style={{
       padding: "8px 18px", borderRadius: 999,
-      background: active ? "rgba(59, 130, 246, 0.15)" : "transparent",
+      background: active ? C.accentGlow : "transparent",
       border: `1px solid ${active ? C.accent : C.border}`,
       color: active ? C.accentLight : C.textMuted,
       fontSize: 13, fontFamily: FONT, fontWeight: active ? 500 : 400,
