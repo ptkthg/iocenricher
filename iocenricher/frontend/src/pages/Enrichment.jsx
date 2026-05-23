@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useId } from "react";
 import { C, FONT, RISK_CFG, timeAgo, fmtDate, detectType, colorBg, colorBorder } from "../lib/theme";
 import { enrichIndicator, getHistory, addToHistory } from "../lib/api";
 import Icon from "../components/Icon";
@@ -26,6 +26,7 @@ function ScoreGauge({ score, level }) {
 }
 
 function Sparkline({ data, color }) {
+  const gradId = useId();
   const w = 360, h = 120, pad = 20;
   const max = Math.max(...data, 1), min = Math.min(...data, 0);
   const range = max - min || 1;
@@ -39,7 +40,7 @@ function Sparkline({ data, color }) {
   return (
     <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: "block" }}>
       <defs>
-        <linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.25" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
@@ -52,7 +53,7 @@ function Sparkline({ data, color }) {
         const y = pad + (1 - v / 100) * (h - pad * 2);
         return <text key={i} x={pad - 4} y={y + 3} fill={C.textDim} fontSize="9" textAnchor="end">{v}</text>;
       })}
-      <path d={areaPath} fill="url(#sparkfill)" />
+      <path d={areaPath} fill={`url(#${gradId})`} />
       <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
     </svg>
   );

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useId } from "react";
 import { C, FONT, RISK_CFG, timeAgo } from "../lib/theme";
 import Icon from "../components/Icon";
 import { Card, Badge, Button, PageHeader, StatBox } from "../components/UI";
@@ -7,6 +7,7 @@ const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 // ==================== AREA CHART ====================
 function AreaChart({ data, color = C.accent, height = 220 }) {
+  const gradId = useId();
   const w = 700;
   const h = height;
   const pad = { top: 20, right: 20, bottom: 30, left: 40 };
@@ -43,7 +44,7 @@ function AreaChart({ data, color = C.accent, height = 220 }) {
   return (
     <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: "block" }}>
       <defs>
-        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.3" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
@@ -60,7 +61,7 @@ function AreaChart({ data, color = C.accent, height = 220 }) {
         <text key={i} x={p.x} y={h - 8} fill={C.textDim} fontSize="10" textAnchor="middle" fontFamily={FONT}>{p.label}</text>
       ))}
 
-      <path d={smoothArea} fill="url(#areaGrad)" />
+      <path d={smoothArea} fill={`url(#${gradId})`} />
       <path d={smoothPath} fill="none" stroke={color} strokeWidth="2" />
 
       {points.map((p, i) => (
