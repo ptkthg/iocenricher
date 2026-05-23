@@ -961,7 +961,7 @@ function ContextTimeline({ result }) {
                 {ev.detail && <div style={{ fontSize: 11, color: C.textMuted }}>{ev.detail}</div>}
               </div>
               <div style={{ fontSize: 11, color: C.textDim, whiteSpace: "nowrap", flexShrink: 0, marginTop: 2 }}>
-                {new Date(ev.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
+                {new Date(ev.date).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}
               </div>
             </div>
           </div>
