@@ -85,7 +85,7 @@ export default function App() {
       case "Reports":
         return <Reports history={history} />;
       case "Settings":
-        return <Settings />;
+        return <Settings theme={theme} onThemeChange={setTheme} />;
       default:
         return null;
     }

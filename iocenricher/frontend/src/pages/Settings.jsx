@@ -148,7 +148,7 @@ function IntegrationCard({ name, icon, status, detail1, detail2, apiKey, onSave 
   );
 }
 
-export default function Settings() {
+export default function Settings({ theme, onThemeChange }) {
   const [activeTab, setActiveTab] = useState("General");
   const [settings, setSettings] = useState(() => {
     try {
@@ -372,14 +372,14 @@ export default function Settings() {
             <div style={{ marginTop: 16 }}>
               <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>Theme</div>
               <div style={{ display: "flex", gap: 8 }}>
-                {["Dark", "System"].map(t => (
-                  <button key={t} onClick={() => update("theme", t)} style={{
+                {[{ value: "dark", label: "Dark" }, { value: "light", label: "Light" }].map(t => (
+                  <button key={t.value} onClick={() => onThemeChange(t.value)} style={{
                     padding: "8px 20px", borderRadius: 8,
-                    background: settings.theme === t ? "rgba(59,130,246,0.15)" : "transparent",
-                    border: `1px solid ${settings.theme === t ? C.accent : C.border}`,
-                    color: settings.theme === t ? C.accentLight : C.textMuted,
+                    background: theme === t.value ? "rgba(59,130,246,0.15)" : "transparent",
+                    border: `1px solid ${theme === t.value ? C.accent : C.border}`,
+                    color: theme === t.value ? C.accentLight : C.textMuted,
                     fontSize: 13, fontFamily: FONT, cursor: "pointer"
-                  }}>{t}</button>
+                  }}>{t.label}</button>
                 ))}
               </div>
             </div>
