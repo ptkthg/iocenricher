@@ -61,7 +61,7 @@ function Sparkline({ data, color }) {
 
 function GeoBar({ label, pct }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "150px 1fr 50px", alignItems: "center", gap: 12, marginBottom: 10 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(80px, 150px) 1fr 44px", alignItems: "center", gap: 12, marginBottom: 10 }}>
       <span style={{ fontSize: 13, color: C.text, display: "flex", alignItems: "center", gap: 6 }}>
         <Icon name="globe" size={14} color={C.accentLight} />
         {label}
