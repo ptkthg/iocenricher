@@ -63,6 +63,7 @@ export function colorBg(c) {
     [C.red]: C.redBg, [C.orange]: C.orangeBg, [C.yellow]: C.yellowBg,
     [C.green]: C.greenBg, [C.purple]: C.purpleBg, [C.cyan]: C.cyanBg,
     [C.accent]: C.accentGlow, [C.accentLight]: C.accentGlow,
+    [C.text]: C.bgInput, [C.textMuted]: C.bgInput,
   };
   return map[c] || C.accentGlow;
 }
@@ -72,6 +73,7 @@ export function colorBorder(c) {
     [C.red]: C.redBorder, [C.orange]: C.orangeBorder, [C.yellow]: C.yellowBorder,
     [C.green]: C.greenBorder, [C.purple]: C.purpleBorder, [C.cyan]: C.cyanBorder,
     [C.accent]: C.accentBorder, [C.accentLight]: C.accentBorder,
+    [C.textMuted]: C.border, [C.text]: C.border,
   };
   return map[c] || C.accentBorder;
 }

@@ -14,7 +14,7 @@ const DEFAULT_SETTINGS = {
   autoEnrich: true,
   storeHistory: true,
   retainDays: "90",
-  theme: "Dark",
+  theme: "dark",
   emailAlerts: false,
   emailRecipients: "",
   slackAlerts: false,
@@ -275,7 +275,7 @@ export default function Settings({ theme, onThemeChange }) {
   }
 
   async function testBackend() {
-    const url = (settings.backendUrl || "http://localhost:3001").replace(/\/$/, "");
+    const url = (settings.backendUrl || import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
     setTestingBackend(true);
     setTestBackendResult(null);
     try {
