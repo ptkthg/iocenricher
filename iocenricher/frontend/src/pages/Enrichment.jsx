@@ -1070,7 +1070,7 @@ function InvestigatorChecklist({ result, risk }) {
             <div style={{ width: `${pct}%`, height: "100%", background: done === items.length ? C.green : C.accentLight, borderRadius: 3, transition: "width 0.3s" }} />
           </div>
           {done > 0 && (
-            <button onClick={clearAll} style={{ background: "none", border: "none", color: C.textDim, fontSize: 11, cursor: "pointer", fontFamily: FONT }}>Reset</button>
+            <button onClick={clearAll} style={{ padding: "4px 10px", borderRadius: 6, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontSize: 12, fontFamily: FONT, cursor: "pointer", transition: "all 0.15s" }}>Reset</button>
           )}
         </div>
       </div>
