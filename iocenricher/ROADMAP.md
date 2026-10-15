@@ -1,6 +1,6 @@
 # Evolução do IOC Enricher
 
-Branch de desenvolvimento: `roadmap/phase1-public-access`. Nenhum push ou deploy será feito neste roadmap sem autorização.
+Branch de desenvolvimento: `roadmap/phase1-public-access`. Em 2026-10-15, o usuário autorizou publicar o progresso no GitHub e no site conforme cada incremento for validado.
 
 ## Linha de base — 2026-10-14
 
@@ -42,3 +42,10 @@ Branch de desenvolvimento: `roadmap/phase1-public-access`. Nenhum push ou deploy
 - Atualização da análise individual e health: backend `npm test` — 14 testes aprovados; frontend `npm test` — 5; `npm run build` — aprovado; `node scripts/phase1-smoke.mjs` — estados de erro, tabela de fontes, rotas e mobile aprovados. Nenhum push ou deploy neste roadmap.
 - Revisão da integração MalwareBazaar e relatório individual: backend `npm test` — 16 testes aprovados; frontend `npm test` — 6; `npm run build` — aprovado; `git diff --check` — sem erros. Health local confirmou `malwarebazaar: not_configured` sem chave. O smoke do navegador confirmou uma consulta nova sem login, erro de consulta sem score, conclusão do carregamento e telas móveis sem rolagem horizontal. `node scripts/storage-smoke.mjs` confirmou migração, notas, casos, backup e retenção em porta isolada.
 - URLhaus: o tratamento de `query_status` foi alinhado ao resultado documentado `no_results`; erro no corpo não vira ausência de IOC. Backend `npm test` — 18 testes aprovados; `git diff --check` — sem erros.
+
+## Publicação incremental — 2026-10-15
+
+- Autorização do usuário recebida para enviar o progresso ao GitHub e publicar no site conforme as entregas forem validadas.
+- Antes da primeira publicação: backend `npm test` — 18 testes aprovados; frontend `npm test` — 6 testes aprovados; `npm run build` — aprovado.
+- `vercel deploy --dry` confirmou que `backend/.env`, `frontend/.env.local`, dependências e build local estão excluídos do pacote. O arquivo `.vercelignore` fica na raiz usada pela Vercel.
+- A publicação não altera as chaves existentes. MalwareBazaar segue sem chave própria e o limite distribuído segue sem Upstash configurado; esses estados precisam aparecer como indisponibilidade verificável, sem classificação benigna fictícia.

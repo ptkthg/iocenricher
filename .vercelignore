@@ -1,0 +1,6 @@
+iocenricher/backend/.env
+iocenricher/frontend/.env.local
+**/.env
+**/.env.*
+**/node_modules
+**/dist
