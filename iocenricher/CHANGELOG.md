@@ -1,6 +1,6 @@
 # Changelog
 
-## Não publicado
+## Entregas incrementais
 
 ### Fase 1 — em andamento
 
@@ -19,6 +19,8 @@
 
 ### Fase 2 — em andamento
 
+- O painel lateral da investigação foi separado em componente próprio; notas e tags são carregadas por IOC sem exibir dados do indicador anterior, e a lista de consultas recentes agora aceita teclado.
+- Campos e controles da investigação ganharam rótulos acessíveis e foco visível consistente.
 - Sidebar reorganizada por área de trabalho, inteligência, ferramentas e sistema.
 - Migração versionada do histórico para IndexedDB; registros antigos preservados e múltiplas observações do mesmo IOC suportadas.
 - Histórico com exclusão seletiva, filtros e exportação CSV; relatórios JSON/CSV e impressão técnica para salvar como PDF com dados reais.

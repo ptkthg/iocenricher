@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, FONT, RISK_CFG, timeAgo, fmtDate, detectType } from "../lib/theme";
 import { enrichIndicator, addToHistory } from "../lib/api";
-import { loadNote, saveNote as persistNote } from '../lib/investigationStore';
+import InvestigationSidebar from '../components/InvestigationSidebar';
 import AiEvidenceCard from '../components/AiEvidenceCard';
 import IocDiff from '../components/IocDiff';
 import Icon from "../components/Icon";
@@ -967,36 +967,10 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [notes, setNotes] = useState("");
-  const [tags, setTags] = useState([]);
-  const [addingTag, setAddingTag] = useState(false);
-  const [newTag, setNewTag] = useState("");
-  const [noteSaved, setNoteSaved] = useState(false);
-  const [noteError, setNoteError] = useState('');
   const [threatMatch, setThreatMatch] = useState(null);
   const [autoAnalyze, setAutoAnalyze] = useState(false);
   useEffect(() => { if (currentResult?.indicator) setInput(currentResult.indicator); }, [currentResult?.indicator]);
 
-  // Load saved note when indicator changes
-  useEffect(() => {
-    let live = true;
-    if (currentResult?.indicator) loadNote(currentResult.indicator).then(saved => {
-      if (live) { setNotes(saved.notes || ''); setTags(saved.tags || []); setNoteError(''); }
-    });
-    return () => { live = false; };
-  }, [currentResult?.indicator]);
-
-  async function saveNote() {
-    if (!currentResult?.indicator) return;
-    try { await persistNote(currentResult.indicator, notes, tags); setNoteError(''); setNoteSaved(true); setTimeout(() => setNoteSaved(false), 2000); }
-    catch { setNoteError('Não foi possível salvar a nota no navegador.'); }
-  }
-
-  function addTag() {
-    const t = newTag.trim();
-    if (t && !tags.includes(t)) setTags([...tags, t]);
-    setNewTag(""); setAddingTag(false);
-  }
   useEffect(() => {
     if (initialIndicator && initialIndicator !== input) {
       setInput(initialIndicator);
@@ -1548,118 +1522,8 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
         )}
       </div>
 
-      {/* Right sidebar */}
-      <div className="sidebar-right" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Notas do analista</h3>
-            {currentResult?.indicator && (
-              <span style={{ fontSize: 10, color: C.textDim, fontFamily: "monospace", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {currentResult.indicator}
-              </span>
-            )}
-          </div>
-          <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            placeholder="Adicione notas, contexto e observações da investigação..."
-            rows={5}
-            style={{
-              width: "100%", padding: 12,
-              background: C.bgInput, border: `1px solid ${C.border}`,
-              borderRadius: 8, color: C.text, fontSize: 13,
-              resize: "vertical", lineHeight: 1.5,
-              fontFamily: FONT, outline: "none", boxSizing: "border-box"
-            }}
-            onFocus={e => e.target.style.borderColor = C.accent}
-            onBlur={e => e.target.style.borderColor = C.border}
-          />
-
-          {/* Tags */}
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>Tags</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-              {tags.map((t, i) => (
-                <span key={i} onClick={() => setTags(tags.filter((_, j) => j !== i))}
-                  title="Clique para remover"
-                  style={{ padding: "4px 10px", background: "rgba(59,130,246,0.12)", border: `1px solid ${C.accent}44`, borderRadius: 6, color: C.accentLight, fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
-                  {t} <span style={{ opacity: 0.6, fontSize: 10 }}>×</span>
-                </span>
-              ))}
-              {addingTag ? (
-                <input
-                  autoFocus
-                  value={newTag}
-                  onChange={e => setNewTag(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") addTag(); if (e.key === "Escape") { setAddingTag(false); setNewTag(""); } }}
-                  onBlur={addTag}
-                  placeholder="nome da tag..."
-                  style={{ padding: "4px 8px", background: C.bgInput, border: `1px solid ${C.accent}`, borderRadius: 6, color: C.text, fontSize: 11, fontFamily: FONT, outline: "none", width: 90 }}
-                />
-              ) : (
-                <button onClick={() => setAddingTag(true)} style={{ padding: "4px 10px", background: "transparent", border: `1px dashed ${C.border}`, borderRadius: 6, color: C.textMuted, fontSize: 11, cursor: "pointer" }}>
-                  + Adicionar tag
-                </button>
-              )}
-            </div>
-          </div>
-
-          <p style={{fontSize:11,color:C.textDim}}>Notas e tags ficam somente neste navegador.</p>
-          {noteError && <p role="alert" style={{ color: C.red }}>{noteError}</p>}
-
-          <Button
-            onClick={saveNote}
-            disabled={!currentResult?.indicator}
-            style={{ width: "100%", marginTop: 16, justifyContent: "center", background: noteSaved ? C.greenBg : undefined, borderColor: noteSaved ? C.green : undefined, color: noteSaved ? C.green : undefined }}
-            icon={noteSaved ? <Icon name="check" size={14} color={C.green} /> : null}
-          >
-            {noteSaved ? "Nota salva" : "Salvar nota"}
-          </Button>
-        </Card>
-
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Consultas recentes</h3>
-            <button onClick={() => onNavigate?.("History")} style={{ background: "transparent", border: "none", color: C.accentLight, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>Ver todas</button>
-          </div>
-          {history.length === 0 ? (
-            <div style={{ padding: "20px 0", textAlign: "center", fontSize: 12, color: C.textMuted }}>Nenhuma consulta salva</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {history.slice(0, 6).map((h, i) => {
-                const hcfg = RISK_CFG[h.risk?.level] || RISK_CFG.INCONCLUSIVO;
-                const isActive = currentResult?.indicator === h.indicator;
-                return (
-                  <div key={i}
-                    onClick={() => { setInput(h.indicator); setCurrentResult(h); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "10px 8px",
-                      borderTop: i > 0 ? `1px solid ${C.borderSubtle}` : "none",
-                      cursor: "pointer", borderRadius: 8, margin: "0 -8px",
-                      background: isActive ? "rgba(59,130,246,0.08)" : "transparent",
-                      transition: "background 0.12s"
-                    }}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = C.bgCardHover; }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? "rgba(59,130,246,0.08)" : "transparent"; }}
-                  >
-                    <div style={{ width: 28, height: 28, borderRadius: 6, background: isActive ? "rgba(59,130,246,0.15)" : C.bgInput, border: `1px solid ${isActive ? C.accent + "55" : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Icon name="globe" size={14} color={isActive ? C.accentLight : C.textMuted} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, color: isActive ? C.accentLight : C.text, fontWeight: isActive ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {h.indicator}
-                      </div>
-                      <div style={{ fontSize: 10, color: C.textMuted, textTransform: "capitalize" }}>{h.type}</div>
-                    </div>
-                    <Badge color={hcfg.color} bg={hcfg.bg}>{h.risk?.score ?? '—'}</Badge>
-                    <span style={{ fontSize: 10, color: C.textDim, flexShrink: 0, minWidth: 36, textAlign: "right" }}>{timeAgo(h.timestamp)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      </div>
+      <InvestigationSidebar key={currentResult?.indicator || ''} indicator={currentResult?.indicator} history={history} onNavigate={onNavigate}
+        onSelect={item => { setInput(item.indicator); setCurrentResult(item); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
     </div></>
   );
 }
