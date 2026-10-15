@@ -34,6 +34,12 @@ try {
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `if(location.port==='5175')localStorage.setItem('iocenricher_history',${JSON.stringify(JSON.stringify(observations))})` });
   await send('Page.navigate', { url: `${origin}/historico` });
   await pause(900);
+  await evaluate(`(()=>{const select=document.querySelector('select[aria-label="Tipo"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'Domain');select.dispatchEvent(new Event('change',{bubbles:true}))})()`);
+  await pause(150);
+  await send('Page.reload');
+  await pause(500);
+  const persistedType = await evaluate(`document.querySelector('select[aria-label="Tipo"]')?.value`);
+  if (persistedType !== 'Domain') throw new Error(`Filtro de histórico não persistiu: ${persistedType}`);
   await evaluate(`(async()=>{const store=await import('/src/lib/investigationStore.js');await store.saveCase({title:'Caso de QA',status:'Aberto',priority:'Média',iocs:['https://example.com/path','example.com']})})()`);
   await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Casos locais'))?.click()`);
   await pause(350);
@@ -57,7 +63,7 @@ try {
   await pause(550);
   const preferences = await evaluate(`({retention:document.body.textContent.includes('Aplicar retenção'),viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth})`);
   if (!preferences.retention || preferences.content > preferences.viewport) throw new Error(`Preferências mobile falharam: ${JSON.stringify(preferences)}`);
-  console.log(JSON.stringify({ desktop, evidence, mobile, preferences }));
+  console.log(JSON.stringify({ persistedType, desktop, evidence, mobile, preferences }));
 } finally {
   await send('Target.closeTarget', { targetId: tab.id });
   socket.close();

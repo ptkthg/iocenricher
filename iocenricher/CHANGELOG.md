@@ -19,6 +19,7 @@
 - Preferências simplificadas para estado verificável das fontes, backup local e notificação Slack já existente.
 - Notas, tags e casos no IndexedDB; backup JSON versionado exporta e restaura observações, notas e casos sem substituir registros preexistentes.
 - Retenção manual nas Preferências mostra quantos registros serão excluídos e preserva notas e casos; o fluxo exige confirmação explícita.
+- Filtros do histórico persistem após recarregar a página; valores salvos são validados antes de uso.
 
 ### Fases 3 a 5 — incrementos parciais
 
