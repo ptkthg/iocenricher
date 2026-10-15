@@ -6,12 +6,20 @@ const headers = () => ({
   'Content-Type': 'application/x-www-form-urlencoded'
 });
 
+function queryResult(data) {
+  if (data?.query_status === 'no_results') return false;
+  if (data?.query_status === 'ok') return true;
+  throw Object.assign(new Error('URLhaus query failed'), {
+    code: ['no_api_key', 'user_blacklisted'].includes(data?.query_status) ? 'SOURCE_AUTH' : 'SOURCE_RESPONSE'
+  });
+}
+
 async function checkURL(url) {
   const { data } = await axios.post(`${BASE}/url/`, 
     new URLSearchParams({ url }), 
     { headers: headers() }
   );
-  if (data.query_status !== 'ok') return { found: false };
+  if (!queryResult(data)) return { found: false };
   return {
     found: true,
     threat: data.threat,
@@ -33,7 +41,7 @@ async function checkHostname(host) {
     new URLSearchParams({ host }), 
     { headers: headers() }
   );
-  if (data.query_status !== 'ok') return { found: false };
+  if (!queryResult(data)) return { found: false };
   return {
     found: true,
     blacklists: data.blacklists || {},
@@ -54,7 +62,7 @@ async function checkPayloadHash(hash) {
     new URLSearchParams({ [field]: hash }), 
     { headers: headers() }
   );
-  if (data.query_status !== 'ok') return { found: false };
+  if (!queryResult(data)) return { found: false };
   return {
     found: true,
     file_type: data.file_type,
@@ -67,4 +75,4 @@ async function checkPayloadHash(hash) {
   };
 }
 
-module.exports = { checkURL, checkHostname, checkPayloadHash };
+module.exports = { checkURL, checkHostname, checkPayloadHash, queryResult };

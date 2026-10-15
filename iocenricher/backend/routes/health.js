@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const { queryResult: urlhausQueryResult } = require('../services/urlhaus');
 
 async function checkSource(name, fn) {
   const start = Date.now();
@@ -31,7 +32,8 @@ async function sourceChecks() {
     }),
     checkSource('urlhaus', async () => {
       if (!process.env.URLHAUS_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
-      await axios.post('https://urlhaus-api.abuse.ch/v1/host/', new URLSearchParams({ host: '8.8.8.8' }), { headers: { 'Auth-Key': process.env.URLHAUS_API_KEY }, timeout: 5000 });
+      const { data } = await axios.post('https://urlhaus-api.abuse.ch/v1/host/', new URLSearchParams({ host: '8.8.8.8' }), { headers: { 'Auth-Key': process.env.URLHAUS_API_KEY }, timeout: 5000 });
+      urlhausQueryResult(data);
     }),
     checkSource('malwarebazaar', async () => {
       if (!process.env.MALWAREBAZAAR_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
