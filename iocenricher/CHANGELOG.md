@@ -19,6 +19,8 @@
 
 ### Fase 2 — em andamento
 
+- A análise em lote usa o serviço comum de enriquecimento, mantém erros sem score de risco, valida o cache local e bloqueia lotes acima de dez IOCs em vez de ignorar indicadores excedentes.
+- A tela em lote foi traduzida, ganhou ordenação acessível por teclado, rótulos de filtros e ações, e informa falhas de armazenamento ou cópia.
 - O painel lateral da investigação foi separado em componente próprio; notas e tags são carregadas por IOC sem exibir dados do indicador anterior, e a lista de consultas recentes agora aceita teclado.
 - Campos e controles da investigação ganharam rótulos acessíveis e foco visível consistente.
 - Sidebar reorganizada por área de trabalho, inteligência, ferramentas e sistema.
