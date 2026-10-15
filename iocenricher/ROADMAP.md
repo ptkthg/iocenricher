@@ -46,6 +46,8 @@ Branch de desenvolvimento: `roadmap/phase1-public-access`. Em 2026-10-15, o usu�
 ## Publicação incremental — 2026-10-15
 
 - Fase 2, painel lateral da investigação: notas, tags e consultas recentes extraídas para componente próprio; troca de IOC reinicia o estado local do painel, controles recentes e tags usam botões acessíveis. Backend `npm test`: 18/18; frontend `npm test`: 6/6; `npm run build`: aprovado; `git diff --check`: sem erros. Inspeção visual deste incremento ainda pendente.
+- Commit `5947583` enviado ao GitHub e deploy `dpl_8s4njFoTJ49aDnXBSy7VCH4o52BL` publicado em `https://iocenricher.vercel.app/` (Ready). A página respondeu HTTP 200 e `/api/health/sources` retornou VirusTotal, IPinfo, AbuseIPDB, Shodan e Groq online; URLhaus em `auth_error` e MalwareBazaar em `not_configured`.
+- `npm audit --json` no frontend ainda reporta 8 alertas (1 baixo, 2 moderados, 5 altos), concentrados no toolchain de build/desenvolvimento. A correção de Vite exige atualização major e deve passar por validação própria antes de ser publicada.
 - Autorização do usuário recebida para enviar o progresso ao GitHub e publicar no site conforme as entregas forem validadas.
 - Antes da primeira publicação: backend `npm test` — 18 testes aprovados; frontend `npm test` — 6 testes aprovados; `npm run build` — aprovado.
 - `vercel deploy --dry` confirmou que `backend/.env`, `frontend/.env.local`, dependências e build local estão excluídos do pacote. O arquivo `.vercelignore` fica na raiz usada pela Vercel.
