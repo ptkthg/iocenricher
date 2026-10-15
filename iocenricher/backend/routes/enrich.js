@@ -146,7 +146,9 @@ router.post('/enrich', async (req, res) => {
         console.warn('Análise IA indisponível:', e.response?.status || e.code || 'upstream', providerType, providerCode, category);
       }
       results.ai_analysis = null;
-      results.source_status.groq = e.code === 'SKIPPED' ? 'skipped' : !process.env.GROQ_API_KEY ? 'not_configured' : 'unavailable';
+      results.source_status.groq = e.code === 'SKIPPED' ? 'skipped'
+        : !process.env.GROQ_API_KEY ? 'not_configured'
+        : e.response?.data?.error?.code === 'model_not_found' ? 'model_unavailable' : 'unavailable';
     }
 
     res.json(results);

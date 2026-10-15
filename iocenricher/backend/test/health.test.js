@@ -15,5 +15,6 @@ test('health distingue chave ausente, autenticação e limite da fonte', async (
   assert.equal((await failure('MISSING_KEY')).status, 'not_configured');
   assert.equal((await failure(undefined, 403)).status, 'auth_error');
   assert.equal((await failure('SOURCE_AUTH')).status, 'auth_error');
+  assert.equal((await failure('MODEL_UNAVAILABLE')).status, 'model_unavailable');
   assert.equal((await failure(undefined, 429)).status, 'rate_limited');
 });

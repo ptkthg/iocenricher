@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { queryResult: urlhausQueryResult } = require('../services/urlhaus');
+const { GROQ_MODEL } = require('../services/groq-config');
 
 async function checkSource(name, fn) {
   const start = Date.now();
@@ -10,6 +11,7 @@ async function checkSource(name, fn) {
     return { name, status: 'online', latency: Date.now() - start };
   } catch (e) {
     const status = e.code === 'MISSING_KEY' ? 'not_configured'
+      : e.code === 'MODEL_UNAVAILABLE' ? 'model_unavailable'
       : e.code === 'SOURCE_AUTH' || [401, 403].includes(e.response?.status) ? 'auth_error'
       : e.response?.status === 429 ? 'rate_limited' : 'offline';
     return { name, status, latency: Date.now() - start };
@@ -52,7 +54,10 @@ async function sourceChecks() {
     }),
     checkSource('groq', async () => {
       if (!process.env.GROQ_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
-      await axios.get('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` }, timeout: 5000 });
+      const { data } = await axios.get('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` }, timeout: 5000 });
+      if (!Array.isArray(data?.data) || !data.data.some(model => model.id === GROQ_MODEL && model.active !== false)) {
+        throw Object.assign(new Error('Configured Groq model unavailable'), { code: 'MODEL_UNAVAILABLE' });
+      }
     }),
   ]).then(sources => {
     const value = { sources, checked_at: new Date().toISOString() };
