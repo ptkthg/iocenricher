@@ -14,20 +14,8 @@ const { lookupDomain, lookupIP } = require('../services/whois');
 const { getCertificates } = require('../services/sslcert');
 const { analyzeSubnet } = require('../services/subnetintel');
 const { analyzeDomain } = require('../services/typosquatting');
-
-function detectType(indicator) {
-  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-  const hashRegex = /^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$/;
-  const urlRegex = /^https?:\/\/.+/i;
-  if (ipRegex.test(indicator)) return 'ip';
-  if (hashRegex.test(indicator)) return 'hash';
-  if (urlRegex.test(indicator)) return 'url';
-  return 'domain';
-}
-
-async function safe(fn) {
-  try { return await fn(); } catch { return null; }
-}
+const { normalizeIndicator, IndicatorError } = require('../services/indicator');
+const { acquireSlot, cachedQuery } = require('../services/query-control');
 
 function configured(key, fn) {
   if (!process.env[key]) return Promise.reject(Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' }));
@@ -52,13 +40,15 @@ function recordSource(results, name, settled, onlyFound = false) {
 }
 
 router.post('/enrich', async (req, res) => {
-  const { indicator } = req.body;
-  if (!indicator || typeof indicator !== 'string')
-    return res.status(400).json({ error: 'Indicador inválido ou ausente.' });
-
-  const type = detectType(indicator.trim());
+  let parsed;
+  try { parsed = normalizeIndicator(req.body?.indicator); }
+  catch (error) { return res.status(error instanceof IndicatorError ? 400 : 500).json({ error: error instanceof IndicatorError ? error.message : 'Falha ao validar IOC.' }); }
+  const { indicator, type } = parsed;
+  const release = acquireSlot();
+  if (!release) { res.set('Retry-After', '5'); return res.status(503).json({ error: 'Muitas análises simultâneas. Tente novamente em alguns segundos.' }); }
+  const query = (source, fn) => cachedQuery(source, indicator, fn);
   const results = {
-    indicator: indicator.trim(), type, sources: {}, source_status: {},
+    indicator, type, sources: {}, source_status: {},
     risk: null, recommendation: null, ai_analysis: null,
     timestamp: new Date().toISOString()
   };
@@ -66,13 +56,13 @@ router.post('/enrich', async (req, res) => {
   try {
     if (type === 'ip') {
       const [vt, ipi, abuse, shodan, pdns, whoisData, subnet] = await Promise.allSettled([
-        configured('VIRUSTOTAL_API_KEY', () => vtIP(indicator)),
-        ipinfoIP(indicator),
-        configured('ABUSEIPDB_API_KEY', () => abuseIP(indicator)),
-        configured('SHODAN_API_KEY', () => shodanIP(indicator)),
-        reverseLookup(indicator),
-        lookupIP(indicator),
-        analyzeSubnet(indicator),
+        query('virustotal', () => configured('VIRUSTOTAL_API_KEY', () => vtIP(indicator))),
+        query('ipinfo', () => ipinfoIP(indicator)),
+        query('abuseipdb', () => configured('ABUSEIPDB_API_KEY', () => abuseIP(indicator))),
+        query('shodan', () => configured('SHODAN_API_KEY', () => shodanIP(indicator))),
+        query('passivedns', () => reverseLookup(indicator)),
+        query('whois', () => lookupIP(indicator)),
+        query('subnet', () => analyzeSubnet(indicator)),
       ]);
       recordSource(results, 'virustotal', vt);
       recordSource(results, 'ipinfo', ipi);
@@ -85,7 +75,9 @@ router.post('/enrich', async (req, res) => {
 
     if (type === 'hash') {
       const [vt, mb, uh] = await Promise.allSettled([
-        configured('VIRUSTOTAL_API_KEY', () => enrichHash(indicator)), checkHash(indicator), configured('URLHAUS_API_KEY', () => checkPayloadHash(indicator))
+        query('virustotal', () => configured('VIRUSTOTAL_API_KEY', () => enrichHash(indicator))),
+        query('malwarebazaar', () => checkHash(indicator)),
+        query('urlhaus', () => configured('URLHAUS_API_KEY', () => checkPayloadHash(indicator)))
       ]);
       recordSource(results, 'virustotal', vt);
       recordSource(results, 'malwarebazaar', mb);
@@ -94,11 +86,11 @@ router.post('/enrich', async (req, res) => {
 
     if (type === 'domain') {
       const [vt, uh, pdns, whoisData, ssl, typo] = await Promise.allSettled([
-        configured('VIRUSTOTAL_API_KEY', () => enrichDomain(indicator)),
-        configured('URLHAUS_API_KEY', () => checkHostname(indicator)),
-        forwardLookup(indicator),
-        lookupDomain(indicator),
-        getCertificates(indicator),
+        query('virustotal', () => configured('VIRUSTOTAL_API_KEY', () => enrichDomain(indicator))),
+        query('urlhaus', () => configured('URLHAUS_API_KEY', () => checkHostname(indicator))),
+        query('passivedns', () => forwardLookup(indicator)),
+        query('whois', () => lookupDomain(indicator)),
+        query('ssl', () => getCertificates(indicator)),
         Promise.resolve(analyzeDomain(indicator)),
       ]);
       recordSource(results, 'virustotal', vt);
@@ -113,9 +105,9 @@ router.post('/enrich', async (req, res) => {
       let domain = null;
       try { domain = new URL(indicator).hostname; } catch {}
       const tasks = [
-        configured('VIRUSTOTAL_API_KEY', () => enrichURL(indicator)),
-        configured('URLHAUS_API_KEY', () => checkURL(indicator)),
-        ...(domain ? [lookupDomain(domain), getCertificates(domain), Promise.resolve(analyzeDomain(domain))] : []),
+        query('virustotal', () => configured('VIRUSTOTAL_API_KEY', () => enrichURL(indicator))),
+        query('urlhaus', () => configured('URLHAUS_API_KEY', () => checkURL(indicator))),
+        ...(domain ? [query('whois', () => lookupDomain(domain)), query('ssl', () => getCertificates(domain)), Promise.resolve(analyzeDomain(domain))] : []),
       ];
       const results2 = await Promise.allSettled(tasks);
       recordSource(results, 'virustotal', results2[0]);
@@ -127,26 +119,28 @@ router.post('/enrich', async (req, res) => {
       }
     }
 
-    const { score, level, recommendation, factors } = calculateRisk(results.sources, type);
-    results.risk = { score, level, factors };
+    const { score, level, classification, recommendation, factors, confidence, coverage } = calculateRisk(results.sources, type, results.source_status);
+    results.risk = { score, level, classification, factors, confidence, coverage };
+    results.query_status = coverage.successful ? (coverage.failed.length ? 'partial' : 'complete') : 'error';
     results.recommendation = recommendation;
     results.mitre = mapToMitre(results.sources, type);
 
     try {
+      if (!coverage.successful) throw Object.assign(new Error('Sem evidências externas para IA'), { code: 'SKIPPED' });
       const ai = await analyzeIOC(results);
       results.ai_analysis = ai;
       results.source_status.groq = 'ok';
     } catch (e) {
-      console.warn('Análise IA falhou:', e.message);
+      if (e.code !== 'SKIPPED') console.warn('Análise IA indisponível:', e.code || e.response?.status || 'upstream');
       results.ai_analysis = null;
-      results.source_status.groq = !process.env.GROQ_API_KEY ? 'not_configured' : 'unavailable';
+      results.source_status.groq = e.code === 'SKIPPED' ? 'skipped' : !process.env.GROQ_API_KEY ? 'not_configured' : 'unavailable';
     }
 
     res.json(results);
   } catch (err) {
     console.error('Erro no enriquecimento:', err.message);
     res.status(500).json({ error: 'Erro interno ao consultar fontes OSINT.' });
-  }
+  } finally { release(); }
 });
 
 module.exports = router;

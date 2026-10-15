@@ -2,12 +2,12 @@ import { useMemo, useState } from "react";
 import { C, FONT, RISK_CFG, fmtDate } from "../lib/theme";
 import Icon from "../components/Icon";
 import { Card, Badge, Button, Input, PageHeader } from "../components/UI";
+import { saveInvestigations } from '../lib/investigationStore';
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 const STORAGE_KEY = "bulk_results";
-const HISTORY_KEY = "iocenricher_history";
-const MAX_IOCS = 50;
-const CHUNK_SIZE = 5;
+const MAX_IOCS = 10;
+const CHUNK_SIZE = 3;
 const PER_PAGE = 15;
 
 function detectType(value) {
@@ -37,8 +37,8 @@ function loadStoredResults() {
   catch { return []; }
 }
 
-function riskColor(level) { return (RISK_CFG[level] || RISK_CFG.BAIXO).color; }
-function riskBg(level) { return (RISK_CFG[level] || RISK_CFG.BAIXO).bg; }
+function riskColor(level) { return (RISK_CFG[level] || RISK_CFG.INCONCLUSIVO).color; }
+function riskBg(level) { return (RISK_CFG[level] || RISK_CFG.INCONCLUSIVO).bg; }
 
 function actionColor(action) {
   const map = { BLOQUEAR: C.red, INVESTIGAR: C.accentLight, MONITORAR: C.orange, IGNORAR: C.textMuted };
@@ -74,7 +74,7 @@ async function enrichOne(indicator) {
     if (!res.ok) throw new Error(data.error || "Failed");
     return { ...data, indicator, type: data.type || type, timestamp: data.timestamp || new Date().toISOString() };
   } catch (err) {
-    return { indicator, type, risk: { score: 0, level: "BAIXO" }, recommendation: "INVESTIGAR", timestamp: new Date().toISOString(), error: err.message };
+    return { indicator, type, risk: { score: null, level: "INCONCLUSIVO", classification: "ERRO_DE_CONSULTA", factors: [] }, query_status: 'error', recommendation: null, timestamp: new Date().toISOString(), error: err.message };
   }
 }
 
@@ -82,13 +82,13 @@ async function enrichOne(indicator) {
 function SummaryCards({ results }) {
   if (!results.length) return null;
   const highRisk = results.filter(r => ["CRÍTICO", "ALTO"].includes(r.risk?.level)).length;
-  const clean = results.filter(r => ["BAIXO", "MÉDIO"].includes(r.risk?.level)).length;
-  const failed = results.filter(r => r.error).length;
+  const clean = results.filter(r => r.risk?.classification === "BAIXO_RISCO_OBSERVADO" && r.query_status !== 'error').length;
+  const failed = results.filter(r => r.error || r.query_status === 'error').length;
 
   const cards = [
     { label: "Total Analyzed", value: results.length, color: C.accentLight, bg: "rgba(59,130,246,0.1)", icon: "layers" },
     { label: "High Risk", value: highRisk, color: C.red, bg: C.redBg, icon: "alert" },
-    { label: "Clean", value: clean, color: C.green, bg: C.greenBg, icon: "check" },
+    { label: "Baixo risco observado", value: clean, color: C.green, bg: C.greenBg, icon: "check" },
     { label: "Failed", value: failed, color: C.textMuted, bg: "rgba(88,107,133,0.12)", icon: "x" },
   ];
 
@@ -130,15 +130,11 @@ function RowActions({ row, onSaved }) {
     exportBlob(JSON.stringify(row, null, 2), "application/json", `${row.indicator.replace(/[^a-z0-9._-]/gi, "_")}-${Date.now()}.json`);
   }
 
-  function saveToHistory() {
+  async function saveToHistory() {
     try {
-      const existing = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-      if (!existing.some(e => e.indicator === row.indicator)) {
-        existing.unshift({ ...row, savedAt: new Date().toISOString() });
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(existing));
-      }
+      const updated = await saveInvestigations([{ ...row, savedAt: new Date().toISOString() }]);
       setSaved(true);
-      onSaved?.();
+      onSaved?.(updated);
       setTimeout(() => setSaved(false), 1600);
     } catch {}
   }
@@ -170,7 +166,7 @@ function RowActions({ row, onSaved }) {
 }
 
 // Main component
-export default function Bulk() {
+export default function Bulk({ setHistory }) {
   const [rawInput, setRawInput] = useState("");
   const [results, setResults] = useState(loadStoredResults);
   const [analyzing, setAnalyzing] = useState(false);
@@ -185,7 +181,6 @@ export default function Bulk() {
   const [sortDir, setSortDir] = useState("desc");
   const [page, setPage] = useState(1);
   const [savedAll, setSavedAll] = useState(false);
-  const [_tick, forceUpdate] = useState(0);
 
   const parsedIndicators = useMemo(() => uniqueIndicators(rawInput), [rawInput]);
   const overLimit = parsedIndicators.length > MAX_IOCS;
@@ -204,7 +199,7 @@ export default function Bulk() {
     if (filterAction !== "All") list = list.filter(r => r.recommendation === filterAction);
     list.sort((a, b) => {
       let av, bv;
-      if (sortBy === "score") { av = a.risk?.score || 0; bv = b.risk?.score || 0; }
+      if (sortBy === "score") { av = a.risk?.score ?? -1; bv = b.risk?.score ?? -1; }
       else if (sortBy === "level") { const o = { BAIXO: 1, MÉDIO: 2, ALTO: 3, CRÍTICO: 4 }; av = o[a.risk?.level] || 0; bv = o[b.risk?.level] || 0; }
       else if (sortBy === "timestamp") { av = new Date(a.timestamp).getTime(); bv = new Date(b.timestamp).getTime(); }
       else { av = String(a[sortBy] || "").toLowerCase(); bv = String(b[sortBy] || "").toLowerCase(); }
@@ -240,12 +235,10 @@ export default function Bulk() {
     setPage(1); setAnalyzing(false);
   }
 
-  function handleSaveAll() {
+  async function handleSaveAll() {
     try {
-      const existing = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-      const existingSet = new Set(existing.map(e => e.indicator));
-      const newItems = filtered.filter(r => !existingSet.has(r.indicator)).map(r => ({ ...r, savedAt: new Date().toISOString() }));
-      localStorage.setItem(HISTORY_KEY, JSON.stringify([...newItems, ...existing]));
+      const updated = await saveInvestigations(filtered.map(r => ({ ...r, savedAt: new Date().toISOString() })));
+      setHistory?.(updated);
       setSavedAll(true);
       setTimeout(() => setSavedAll(false), 2000);
     } catch {}
@@ -256,7 +249,7 @@ export default function Bulk() {
   function exportCSV() {
     const rows = [
       ["INDICATOR", "TYPE", "RISK SCORE", "RISK LEVEL", "ACTION", "TIMESTAMP"],
-      ...filtered.map(r => [r.indicator, r.type, r.risk?.score ?? 0, r.risk?.level || "BAIXO", r.recommendation || "—", r.timestamp]),
+      ...filtered.map(r => [r.indicator, r.type, r.risk?.score ?? "", r.query_status === 'error' || r.error ? 'ERRO_DE_CONSULTA' : r.risk?.level || "INCONCLUSIVO", r.recommendation || "—", r.timestamp]),
     ];
     exportBlob(rows.map(row => row.map(csvEscape).join(",")).join("\n"), "text/csv", `bulk-enrichment-${Date.now()}.csv`);
   }
@@ -303,7 +296,7 @@ export default function Bulk() {
         {overLimit && (
           <div style={{ marginTop: 10, padding: "10px 14px", background: C.orangeBg, border: `1px solid ${C.orange}55`, borderRadius: 8, color: C.orange, fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="alert" size={14} color={C.orange} />
-            Maximum 50 IOCs per batch. Only the first 50 will be analyzed.
+            Maximum {MAX_IOCS} IOCs per batch. Only the first {MAX_IOCS} will be analyzed.
           </div>
         )}
 
@@ -351,7 +344,7 @@ export default function Bulk() {
         <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <FilterPill label="Type" value={filterType} options={["All", "ip", "domain", "url", "hash"]} onChange={v => { setFilterType(v); setPage(1); }} />
-            <FilterPill label="Risk" value={filterLevel} options={["All", "CRÍTICO", "ALTO", "MÉDIO", "BAIXO"]} onChange={v => { setFilterLevel(v); setPage(1); }} />
+            <FilterPill label="Risk" value={filterLevel} options={["All", "CRÍTICO", "ALTO", "MÉDIO", "BAIXO", "INCONCLUSIVO"]} onChange={v => { setFilterLevel(v); setPage(1); }} />
             <FilterPill label="Action" value={filterAction} options={["All", "BLOQUEAR", "INVESTIGAR", "MONITORAR", "IGNORAR"]} onChange={v => { setFilterAction(v); setPage(1); }} />
             {(search || filterType !== "All" || filterLevel !== "All" || filterAction !== "All") && (
               <button onClick={() => { setSearch(""); setFilterType("All"); setFilterLevel("All"); setFilterAction("All"); setPage(1); }}
@@ -415,11 +408,11 @@ export default function Bulk() {
                     </td>
                     <td style={tdSt}><Badge color={C.accentLight} bg="rgba(59,130,246,0.1)">{r.type}</Badge></td>
                     <td style={tdSt}><ScorePill score={r.risk?.score} level={r.risk?.level} /></td>
-                    <td style={tdSt}><Badge color={riskColor(r.risk?.level)} bg={riskBg(r.risk?.level)}>{r.risk?.level || "BAIXO"}</Badge></td>
+                    <td style={tdSt}><Badge color={riskColor(r.risk?.level)} bg={riskBg(r.risk?.level)}>{r.query_status === 'error' || r.error ? 'ERRO DE CONSULTA' : r.risk?.level || "INCONCLUSIVO"}</Badge></td>
                     <td style={tdSt}><span style={{ color: actionColor(r.recommendation), fontWeight: 600 }}>{r.recommendation || "—"}</span></td>
                     <td style={{ ...tdSt, color: C.textMuted, fontSize: 12 }}>{fmtDate(r.timestamp)}</td>
                     <td style={{ ...tdSt, paddingRight: 16 }}>
-                      <RowActions row={r} onSaved={() => forceUpdate(n => n + 1)} />
+                      <RowActions row={r} onSaved={updated => setHistory?.(updated)} />
                     </td>
                   </tr>
                 ))}
@@ -483,10 +476,10 @@ function Spinner() {
 }
 
 function ScorePill({ score, level }) {
-  const cfg = RISK_CFG[level] || RISK_CFG.BAIXO;
+  const cfg = RISK_CFG[level] || RISK_CFG.INCONCLUSIVO;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 40, height: 24, borderRadius: 6, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}44`, fontSize: 12, fontWeight: 700 }}>
-      {score ?? 0}
+      {score ?? '—'}
     </span>
   );
 }

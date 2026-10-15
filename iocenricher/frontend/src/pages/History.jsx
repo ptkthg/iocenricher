@@ -1,19 +1,55 @@
-import {useMemo,useState} from 'react';
-import {clearHistory} from '../lib/api';
-import {C,RISK_CFG,fmtDate} from '../lib/theme';
+import { useMemo, useState } from 'react';
+import { clearHistory } from '../lib/api';
+import { deleteInvestigation } from '../lib/investigationStore';
+import { exportInvestigations } from '../lib/report';
+import { C, RISK_CFG, fmtDate } from '../lib/theme';
 
-const cls=h=>RISK_CFG[h.risk?.level]?.label||'SEM CLASSIFICAÇÃO';
-const badge=h=>['CRÍTICO','ALTO'].includes(h.risk?.level)?'red':h.risk?.level==='MÉDIO'?'yellow':h.risk?.level==='BAIXO'?'green':'muted';
-export default function History({history,setHistory,onNavigate,onInvestigate}){
- const [query,setQuery]=useState(''),[type,setType]=useState('Todos'),[risk,setRisk]=useState('Todos'),[period,setPeriod]=useState('Todos'),[action,setAction]=useState('Todas'),[sort,setSort]=useState('recent'),[page,setPage]=useState(1),[saved,setSaved]=useState([]);const perPage=14;
- const list=useMemo(()=>{const cutoff={ '24 horas':864e5,'7 dias':6048e5,'30 dias':2592e6}[period];let rows=history.filter(h=>(!query||`${h.indicator} ${h.type} ${(h.sources&&Object.keys(h.sources).join(' '))||''}`.toLowerCase().includes(query.toLowerCase()))&&(type==='Todos'||h.type?.toLowerCase()===type.toLowerCase())&&(risk==='Todos'||cls(h)===risk)&&(action==='Todas'||h.recommendation===action)&&(!cutoff||Date.now()-new Date(h.timestamp).getTime()<=cutoff));rows=[...rows].sort((a,b)=>sort==='score'?(b.risk?.score||0)-(a.risk?.score||0):sort==='name'?a.indicator.localeCompare(b.indicator):new Date(b.timestamp)-new Date(a.timestamp));return rows},[history,query,type,risk,period,action,sort]);
- const pageCount=Math.max(1,Math.ceil(list.length/perPage));const rows=list.slice((Math.min(page,pageCount)-1)*perPage,Math.min(page,pageCount)*perPage);const count=label=>history.filter(h=>cls(h)===label).length;
- function exportCsv(){const body=[['IOC','Tipo','Score','Classificação','Fontes','Data'],...list.map(h=>[h.indicator,h.type,h.risk?.score??'',cls(h),Object.keys(h.sources||{}).join('; '),h.timestamp])].map(row=>row.map(v=>{const safe=String(v??'').replace(/^[=+\-@]/,"'$&");return `"${safe.replaceAll('"','""')}"`}).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob(['\uFEFF'+body],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download='investigacoes-ioc.csv';a.click();URL.revokeObjectURL(url)}
- return <div className="stack"><div className="toolbar" style={{justifyContent:'space-between'}}><div><h1 className="page-title">Investigações</h1><p className="page-subtitle">Gerencie e acompanhe as consultas de IOCs salvas neste navegador.</p></div><div className="toolbar"><button className="btn" onClick={exportCsv} disabled={!list.length}>↓ Exportar</button><button className="btn btn-primary" onClick={()=>onNavigate('Enrichment')}>＋ Nova investigação</button></div></div>
- <div className="grid-4">{[['Todas',history.length,C.text],['Maliciosos',count('MALICIOSO'),C.red],['Suspeitos',count('SUSPEITO'),C.yellow],['Inconclusivos',count('INCONCLUSIVO'),C.textMuted]].map(([n,v,c])=><div key={n} className="panel kpi"><div className="kpi-label">{n}</div><div className="kpi-value" style={{color:c}}>{v}</div><div className="kpi-note">Consultas locais</div></div>)}</div>
- <div className="panel panel-pad toolbar"><input className="field" style={{flex:'1 1 270px'}} aria-label="Buscar IOC" placeholder="Buscar por IP, domínio, hash, URL ou fonte..." value={query} onChange={e=>{setQuery(e.target.value);setPage(1)}}/><select className="field" aria-label="Tipo" value={type} onChange={e=>{setType(e.target.value);setPage(1)}}>{['Todos','IP','Domain','URL','Hash'].map(x=><option key={x}>{x}</option>)}</select><select className="field" aria-label="Classificação" value={risk} onChange={e=>{setRisk(e.target.value);setPage(1)}}>{['Todos','MALICIOSO','SUSPEITO','BAIXO RISCO','INCONCLUSIVO','SEM CLASSIFICAÇÃO'].map(x=><option key={x}>{x}</option>)}</select><select className="field" aria-label="Período" value={period} onChange={e=>{setPeriod(e.target.value);setPage(1)}}>{['Todos','24 horas','7 dias','30 dias'].map(x=><option key={x}>{x}</option>)}</select><select className="field" aria-label="Ação recomendada" value={action} onChange={e=>{setAction(e.target.value);setPage(1)}}>{['Todas','BLOQUEAR','INVESTIGAR','MONITORAR','IGNORAR'].map(x=><option key={x}>{x}</option>)}</select><select className="field" aria-label="Ordenação" value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Última atividade</option><option value="score">Maior score</option><option value="name">IOC A–Z</option></select></div>
- <div className="panel"><div className="table-wrap"><table className="data-table"><thead><tr><th>IOC principal</th><th>Tipo</th><th>Score</th><th>Classificação</th><th>Fontes</th><th>Data da análise</th><th>Ações</th></tr></thead><tbody>{rows.map((h,i)=><tr key={`${h.indicator}-${i}`}><td className="truncate" title={h.indicator}>{h.indicator}</td><td>{h.type?.toUpperCase()}</td><td>{h.risk?.score??'—'}/100</td><td><span className={`badge ${badge(h)}`}>{cls(h)}</span></td><td>{Object.keys(h.sources||{}).filter(k=>h.sources[k]).join(', ')||'—'}</td><td>{fmtDate(h.timestamp)}</td><td><div className="toolbar"><button className="btn" style={{padding:'4px 8px'}} onClick={()=>onInvestigate(h.indicator)}>Ver</button><button className="btn" style={{padding:'4px 8px',color:saved.includes(h.indicator)?C.green:C.textMuted}} title="Salvar nesta sessão" onClick={()=>setSaved(x=>x.includes(h.indicator)?x.filter(v=>v!==h.indicator):[...x,h.indicator])}>{saved.includes(h.indicator)?'★':'☆'}</button></div></td></tr>)}</tbody></table></div>{!rows.length&&<div className="empty">Nenhuma investigação corresponde aos filtros.</div>}<div className="toolbar" style={{justifyContent:'space-between',padding:'12px'}}><span style={{color:C.textMuted}}>Mostrando {rows.length?((Math.min(page,pageCount)-1)*perPage+1):0}–{Math.min(Math.min(page,pageCount)*perPage,list.length)} de {list.length}</span><div className="toolbar"><button className="btn" disabled={page<=1} onClick={()=>setPage(p=>p-1)}>‹</button><span>{Math.min(page,pageCount)} / {pageCount}</span><button className="btn" disabled={page>=pageCount} onClick={()=>setPage(p=>p+1)}>›</button></div></div></div>
- {saved.length>0&&<div className="panel panel-pad"><h2 className="panel-title">Investigações salvas nesta sessão</h2>{saved.map(i=><button key={i} className="sidebar-link" onClick={()=>onInvestigate(i)}>{i}</button>)}</div>}
- <div className="toolbar" style={{justifyContent:'flex-end'}}><button className="btn" style={{color:C.red}} onClick={()=>{if(window.confirm('Apagar todo o histórico local?')){clearHistory();setHistory([]);setPage(1)}}}>Limpar histórico local</button></div>
- </div>
+const classification = item => item.query_status === 'error' ? 'ERRO DE CONSULTA' : item.risk?.classification || item.risk?.level || 'INCONCLUSIVO';
+const periodMs = { '24 horas': 86_400_000, '7 dias': 604_800_000, '30 dias': 2_592_000_000 };
+
+export default function History({ history, setHistory, onNavigate, onInvestigate }) {
+  const [query, setQuery] = useState('');
+  const [type, setType] = useState('Todos');
+  const [risk, setRisk] = useState('Todos');
+  const [period, setPeriod] = useState('Todos');
+  const [sort, setSort] = useState('recent');
+  const [page, setPage] = useState(1);
+  const [message, setMessage] = useState('');
+  const perPage = 14;
+  const list = useMemo(() => history.filter(item => {
+    if (query && !`${item.indicator} ${item.type} ${Object.keys(item.sources || {}).join(' ')}`.toLowerCase().includes(query.toLowerCase())) return false;
+    if (type !== 'Todos' && item.type?.toLowerCase() !== type.toLowerCase()) return false;
+    if (risk !== 'Todos' && classification(item) !== risk) return false;
+    if (period !== 'Todos' && Date.now() - new Date(item.timestamp).getTime() > periodMs[period]) return false;
+    return true;
+  }).sort((a, b) => sort === 'score' ? (b.risk?.score ?? -1) - (a.risk?.score ?? -1) : sort === 'name' ? a.indicator.localeCompare(b.indicator) : new Date(b.timestamp || 0) - new Date(a.timestamp || 0)), [history, query, type, risk, period, sort]);
+  const pageCount = Math.max(1, Math.ceil(list.length / perPage));
+  const currentPage = Math.min(page, pageCount);
+  const rows = list.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+  async function remove(item) {
+    if (!window.confirm(`Excluir a observação de ${item.indicator} coletada em ${fmtDate(item.timestamp)}?`)) return;
+    try { setHistory(await deleteInvestigation(item.indicator, item.timestamp)); setMessage('Observação excluída do armazenamento local.'); }
+    catch { setMessage('Não foi possível excluir a observação.'); }
+  }
+  async function clear() {
+    if (!window.confirm('Apagar todo o histórico local de investigações?')) return;
+    try { await clearHistory(); setHistory([]); setPage(1); setMessage('Histórico local apagado.'); }
+    catch { setMessage('Não foi possível apagar o histórico. Nenhum dado foi removido do navegador.'); }
+  }
+  const resetPage = setter => event => { setter(event.target.value); setPage(1); };
+
+  return <div className="stack">
+    <div className="toolbar" style={{ justifyContent: 'space-between' }}><div><h1 className="page-title">Casos e histórico</h1><p className="page-subtitle">Observações de IOC salvas neste navegador. Cada coleta é preservada separadamente.</p></div><div className="toolbar"><button className="btn" disabled={!list.length} onClick={() => exportInvestigations(list, 'csv')}>↓ Exportar CSV</button><button className="btn btn-primary" onClick={() => onNavigate('Enrichment')}>＋ Nova investigação</button></div></div>
+    <div className="grid-4">{[
+      ['Observações', history.length, C.text],
+      ['Maliciosas', history.filter(item => classification(item) === 'MALICIOSO').length, C.red],
+      ['Suspeitas', history.filter(item => classification(item) === 'SUSPEITO').length, C.yellow],
+      ['Inconclusivas / erro', history.filter(item => ['INCONCLUSIVO', 'ERRO DE CONSULTA'].includes(classification(item))).length, C.textMuted],
+    ].map(([label, value, color]) => <div key={label} className="panel kpi"><div className="kpi-label">{label}</div><div className="kpi-value" style={{ color }}>{value}</div><div className="kpi-note">Armazenamento local</div></div>)}</div>
+    {message && <div className="panel panel-pad" role="status">{message}</div>}
+    <div className="panel panel-pad toolbar"><input className="field" style={{ flex: '1 1 260px' }} aria-label="Buscar IOC" placeholder="Buscar IOC ou fonte..." value={query} onChange={resetPage(setQuery)} /><select className="field" aria-label="Tipo" value={type} onChange={resetPage(setType)}>{['Todos', 'IP', 'Domain', 'URL', 'Hash'].map(value => <option key={value}>{value}</option>)}</select><select className="field" aria-label="Classificação" value={risk} onChange={resetPage(setRisk)}>{['Todos', 'MALICIOSO', 'SUSPEITO', 'BAIXO_RISCO_OBSERVADO', 'INCONCLUSIVO', 'ERRO DE CONSULTA'].map(value => <option key={value}>{value}</option>)}</select><select className="field" aria-label="Período" value={period} onChange={resetPage(setPeriod)}>{['Todos', '24 horas', '7 dias', '30 dias'].map(value => <option key={value}>{value}</option>)}</select><select className="field" aria-label="Ordenação" value={sort} onChange={resetPage(setSort)}><option value="recent">Mais recentes</option><option value="score">Maior score</option><option value="name">IOC A–Z</option></select></div>
+    <div className="panel"><div className="table-wrap"><table className="data-table"><thead><tr><th>IOC</th><th>Tipo</th><th>Score</th><th>Classificação</th><th>Fontes com resultado</th><th>Coletado em</th><th>Ações</th></tr></thead><tbody>{rows.map((item, index) => <tr key={`${item.indicator}-${item.timestamp}-${index}`}><td className="truncate" title={item.indicator}>{item.indicator}</td><td>{item.type?.toUpperCase() || '—'}</td><td>{item.risk?.score == null ? '—' : `${item.risk.score}/100`}</td><td><span className="badge" style={{ color: RISK_CFG[item.risk?.level]?.color || C.textMuted }}>{classification(item)}</span></td><td>{Object.keys(item.sources || {}).join(', ') || '—'}</td><td>{fmtDate(item.timestamp)}</td><td><div className="toolbar"><button className="btn" style={{ padding: '4px 8px' }} onClick={() => onInvestigate(item.indicator)}>Ver</button><button className="btn" style={{ padding: '4px 8px', color: C.red }} onClick={() => remove(item)}>Excluir</button></div></td></tr>)}</tbody></table></div>{!rows.length && <div className="empty">Nenhuma observação corresponde aos filtros.</div>}<div className="toolbar" style={{ justifyContent: 'space-between', padding: 12 }}><span style={{ color: C.textMuted }}>Mostrando {rows.length ? (currentPage - 1) * perPage + 1 : 0}–{Math.min(currentPage * perPage, list.length)} de {list.length}</span><div className="toolbar"><button className="btn" disabled={currentPage <= 1} onClick={() => setPage(value => value - 1)}>‹</button><span>{currentPage} / {pageCount}</span><button className="btn" disabled={currentPage >= pageCount} onClick={() => setPage(value => value + 1)}>›</button></div></div></div>
+    <div className="toolbar" style={{ justifyContent: 'flex-end' }}><button className="btn" style={{ color: C.red }} disabled={!history.length} onClick={clear}>Limpar histórico local</button></div>
+  </div>;
 }

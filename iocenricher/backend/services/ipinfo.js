@@ -1,9 +1,16 @@
 const axios = require('axios');
 
 async function enrichIP(ip) {
-  const { data } = await axios.get(`https://ipinfo.io/${ip}`, {
-    params: { token: process.env.IPINFO_API_KEY }
-  });
+  let response;
+  try {
+    response = await axios.get(`https://ipinfo.io/${ip}`, {
+      params: process.env.IPINFO_API_KEY ? { token: process.env.IPINFO_API_KEY } : undefined
+    });
+  } catch (error) {
+    if (!process.env.IPINFO_API_KEY || ![401, 403].includes(error.response?.status)) throw error;
+    response = await axios.get(`https://ipinfo.io/${ip}`);
+  }
+  const { data } = response;
   return {
     ip: data.ip,
     hostname: data.hostname || '—',

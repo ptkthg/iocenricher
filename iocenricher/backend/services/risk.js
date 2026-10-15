@@ -1,87 +1,62 @@
-function calculateRisk(sources, type) {
-  let score = 0;
+const REPUTATION = {
+  ip: ['virustotal', 'abuseipdb'],
+  domain: ['virustotal', 'urlhaus'],
+  url: ['virustotal', 'urlhaus'],
+  hash: ['virustotal', 'malwarebazaar', 'urlhaus'],
+};
+
+function calculateRisk(sources = {}, type, sourceStatus = {}) {
+  let points = 0;
   const factors = [];
+  const add = (score, evidence) => { points += score; factors.push(evidence); };
 
-  if (sources.virustotal) {
-    const vt = sources.virustotal;
-    score += (vt.malicious || 0) * 5 + (vt.suspicious || 0) * 2;
-    if (vt.malicious > 0) factors.push(`${vt.malicious} engines detectaram como malicioso no VirusTotal`);
-    if (vt.suspicious > 0) factors.push(`${vt.suspicious} engines marcaram como suspeito`);
-    if (vt.reputation < -10) { score += 15; factors.push('Reputação muito negativa no VirusTotal'); }
+  const vt = sources.virustotal;
+  if (vt) {
+    const malicious = Number(vt.malicious) || 0;
+    const suspicious = Number(vt.suspicious) || 0;
+    if (malicious) add(Math.min(malicious * 5, 60), `VirusTotal: ${malicious} motores marcaram como malicioso`);
+    if (suspicious) add(Math.min(suspicious * 2, 20), `VirusTotal: ${suspicious} motores marcaram como suspeito`);
+    if (Number(vt.reputation) < -10) add(15, 'VirusTotal: reputação negativa');
   }
-
-  if (sources.ipinfo) {
-    const ip = sources.ipinfo;
-    if (ip.is_bogon) { score += 30; factors.push('IP é bogon (não roteável publicamente)'); }
-    if (ip.is_anycast) factors.push('IP é anycast (múltiplos servidores)');
-    if (ip.org) factors.push(`Organização: ${ip.org}`);
+  const abuse = sources.abuseipdb;
+  if (abuse && Number(abuse.abuse_score) >= 20) {
+    const value = Number(abuse.abuse_score);
+    add(value >= 80 ? 35 : value >= 50 ? 20 : 10, `AbuseIPDB: confiança de abuso ${value}%`);
   }
+  if (abuse?.is_tor) add(10, 'AbuseIPDB: nó Tor; exige contexto antes de qualquer ação');
+  if (sources.malwarebazaar?.found) add(45, 'MalwareBazaar: amostra encontrada');
+  if (sources.urlhaus?.found) add(40, 'URLhaus: IOC associado a ameaça');
+  if (sources.shodan?.total_vulns > 0) add(Math.min(sources.shodan.total_vulns * 5, 20), `Shodan: ${sources.shodan.total_vulns} CVE(s) associadas`);
+  if (sources.whois?.found && Number.isFinite(sources.whois.age_days) && sources.whois.age_days >= 0 && sources.whois.age_days < 30) add(15, `WHOIS: domínio registrado há ${sources.whois.age_days} dias`);
+  if (sources.typosquatting?.is_suspicious) add(Math.min(Number(sources.typosquatting.score) || 15, 30), 'Heurística local: possível typosquatting');
+  if (sources.ssl?.has_expired) add(5, 'Certificado TLS expirado');
+  if (sources.ssl?.has_self_signed) add(5, 'Certificado TLS autoassinado');
+  if (sources.subnet?.found && sources.subnet.total_malicious > 0) add(Math.min(sources.subnet.total_malicious * 5, 20), `Subnet: ${sources.subnet.total_malicious} IP(s) sinalizados`);
 
-  if (sources.abuseipdb) {
-    const ab = sources.abuseipdb;
-    if (ab.abuse_score >= 80) { score += 35; factors.push(`AbuseIPDB: ${ab.abuse_score}% abuse confidence (${ab.total_reports} reports)`); }
-    else if (ab.abuse_score >= 50) { score += 20; factors.push(`AbuseIPDB: ${ab.abuse_score}% abuse confidence`); }
-    else if (ab.abuse_score >= 20) { score += 10; factors.push(`AbuseIPDB: ${ab.abuse_score}% abuse confidence`); }
-    if (ab.is_tor) { score += 15; factors.push('IP é nó Tor (anonimização)'); }
-  }
+  const relevant = REPUTATION[type] || [];
+  const successful = relevant.filter(name => ['ok', 'no_match'].includes(sourceStatus[name]) || (sourceStatus[name] == null && sources[name]));
+  const failed = relevant.filter(name => sourceStatus[name] && !['ok', 'no_match'].includes(sourceStatus[name]));
+  const coverage = { successful: successful.length, total: relevant.length, sources: successful, failed };
+  const score = successful.length || points > 0 ? Math.min(Math.round(points), 100) : null;
 
-  if (sources.shodan) {
-    const sh = sources.shodan;
-    if (sh.total_vulns > 0) { score += Math.min(sh.total_vulns * 8, 30); factors.push(`Shodan: ${sh.total_vulns} CVE(s) conhecida(s)`); }
-    if (sh.ports?.some(p => [4444,1337,31337].includes(p))) { score += 15; factors.push('Portas C2 comuns abertas'); }
-    if (sh.total_ports > 20) { score += 5; factors.push(`${sh.total_ports} portas abertas`); }
-  }
+  let level, classification;
+  if (score === null) { level = 'INCONCLUSIVO'; classification = 'INCONCLUSIVO'; }
+  else if (score >= 40) { level = score >= 70 ? 'CRÍTICO' : 'ALTO'; classification = 'MALICIOSO'; }
+  else if (score >= 15) { level = 'MÉDIO'; classification = 'SUSPEITO'; }
+  else if (successful.length) { level = 'BAIXO'; classification = 'BAIXO_RISCO_OBSERVADO'; }
+  else { level = 'INCONCLUSIVO'; classification = 'INCONCLUSIVO'; }
 
-  if (sources.subnet?.found) {
-    const sn = sources.subnet;
-    if (sn.total_malicious >= 5) { score += 20; factors.push(`${sn.total_malicious} IPs maliciosos na mesma subnet /24`); }
-    else if (sn.total_malicious >= 2) { score += 10; factors.push(`${sn.total_malicious} IPs maliciosos na mesma subnet`); }
-    else if (sn.total_malicious >= 1) { score += 5; factors.push(`${sn.total_malicious} IP malicioso na subnet`); }
-  }
+  if (!successful.length) factors.push('Nenhuma fonte de reputação respondeu com resultado verificável; não há base para concluir que o IOC é seguro');
+  else if (failed.length) factors.push(`Cobertura parcial: ${failed.join(', ')} não concluíram a consulta`);
+  if (score === 0) factors.push('As fontes disponíveis não apresentaram sinais positivos de ameaça nesta coleta');
 
-  if (sources.malwarebazaar?.found) {
-    score += 40;
-    factors.push('Hash encontrado no MalwareBazaar — amostra maliciosa conhecida');
-    if (sources.malwarebazaar.signature) factors.push(`Assinatura malware: ${sources.malwarebazaar.signature}`);
-  }
-
-  if (sources.urlhaus?.found) {
-    score += 35;
-    if (sources.urlhaus.threat) factors.push(`URLhaus identificou ameaça: ${sources.urlhaus.threat}`);
-    if (sources.urlhaus.url_count > 0) factors.push(`${sources.urlhaus.url_count} URLs maliciosas associadas`);
-  }
-
-  if (sources.whois?.found) {
-    const w = sources.whois;
-    if (w.age_days !== null && w.age_days < 30) { score += 25; factors.push(`Domínio registrado há apenas ${w.age_days} dias (muito recente)`); }
-    else if (w.age_days !== null && w.age_days < 90) { score += 12; factors.push(`Domínio registrado há ${w.age_days} dias (recente)`); }
-    if (w.status?.some(s => s.includes('clientHold'))) { score += 10; factors.push('Domínio com status clientHold (suspenso)'); }
-  }
-
-  if (sources.typosquatting?.is_suspicious) {
-    const t = sources.typosquatting;
-    score += Math.min(t.score, 30);
-    if (t.matches?.length > 0) factors.push(`Possível typosquatting: imita "${t.matches[0].brand}" (${t.matches[0].technique})`);
-    if (t.suspicious_tld) factors.push(`TLD suspeito: ${t.suspicious_tld}`);
-    t.flags?.forEach(f => factors.push(f));
-  }
-
-  if (sources.ssl?.has_self_signed) { score += 5; factors.push('Certificado SSL auto-assinado detectado'); }
-  if (sources.ssl?.has_expired) { score += 8; factors.push('Certificado SSL expirado'); }
-
-  score = Math.min(score, 100);
-
-  let level, recommendation;
-  if (score >= 70) { level = 'CRÍTICO'; recommendation = 'BLOQUEAR'; }
-  else if (score >= 40) { level = 'ALTO'; recommendation = 'INVESTIGAR'; }
-  else if (score >= 15) { level = 'MÉDIO'; recommendation = 'MONITORAR'; }
-  else if (!sources.virustotal && !sources.abuseipdb && !sources.urlhaus && !sources.malwarebazaar) {
-    level = 'INCONCLUSIVO'; recommendation = 'INVESTIGAR';
-    factors.push('Fontes de reputação indisponíveis ou sem resposta; não é possível concluir que o IOC é benigno');
-  }
-  else { level = 'BAIXO'; recommendation = 'IGNORAR'; }
-
-  return { score, level, recommendation, factors };
+  const positive = successful.filter(name => name === 'virustotal' ? (Number(vt?.malicious) || 0) > 0 || (Number(vt?.suspicious) || 0) > 0 : name === 'abuseipdb' ? (Number(abuse?.abuse_score) || 0) >= 20 : Boolean(sources[name]?.found));
+  const disagreement = positive.length > 0 && positive.length < successful.length;
+  if (disagreement) factors.push('Fontes de reputação divergem; confirme o contexto antes de agir');
+  const confidenceLevel = successful.length >= 2 && !disagreement ? 'ALTA' : successful.length ? 'MÉDIA' : 'BAIXA';
+  const confidence = { level: confidenceLevel, reason: `${successful.length}/${relevant.length} fontes de reputação concluídas${disagreement ? '; sinais divergentes' : ''}` };
+  const recommendation = classification === 'SUSPEITO' ? 'MONITORAR' : 'INVESTIGAR';
+  return { score, level, classification, recommendation, factors, confidence, coverage };
 }
 
 module.exports = { calculateRisk };

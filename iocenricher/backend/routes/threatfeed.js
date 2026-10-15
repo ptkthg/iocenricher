@@ -1,16 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const { searchIP, getStats, getList } = require('../services/threatfeed');
+const { normalizeIndicator } = require('../services/indicator');
 
 // GET /api/threatfeed/search?ip=x.x.x.x
 router.get('/search', async (req, res) => {
-  const { ip } = req.query;
-  if (!ip) return res.status(400).json({ error: 'IP required' });
+  let ip;
+  try { const parsed = normalizeIndicator(req.query.ip); if (parsed.type !== 'ip') throw new Error(); ip = parsed.indicator; }
+  catch { return res.status(400).json({ error: 'IPv4 público inválido.' }); }
   try {
     const match = await searchIP(ip);
     res.json({ ip, match: match || null, found: !!match });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(502).json({ error: 'Threat Feed indisponível.' });
   }
 });
 
@@ -21,7 +23,7 @@ router.get('/list', async (req, res) => {
     const result = await getList({ page: Number(page), perPage: Number(perPage), search, malware });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(502).json({ error: 'Threat Feed indisponível.' });
   }
 });
 
@@ -31,7 +33,7 @@ router.get('/stats', async (req, res) => {
     const stats = await getStats();
     res.json(stats);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(502).json({ error: 'Threat Feed indisponível.' });
   }
 });
 

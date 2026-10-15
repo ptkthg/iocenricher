@@ -19,7 +19,10 @@ router.get('/health/sources', async (req, res) => {
       if (!process.env.VIRUSTOTAL_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
       return axios.get('https://www.virustotal.com/api/v3/ip_addresses/8.8.8.8', { headers: { 'x-apikey': process.env.VIRUSTOTAL_API_KEY }, timeout: 5000 });
     }),
-    checkSource('ipinfo', () => axios.get('https://ipinfo.io/8.8.8.8', { params: { token: process.env.IPINFO_API_KEY }, timeout: 5000 })),
+    checkSource('ipinfo', async () => {
+      try { return await axios.get('https://ipinfo.io/8.8.8.8', { params: process.env.IPINFO_API_KEY ? { token: process.env.IPINFO_API_KEY } : undefined, timeout: 5000 }); }
+      catch (error) { if (!process.env.IPINFO_API_KEY || ![401, 403].includes(error.response?.status)) throw error; return axios.get('https://ipinfo.io/8.8.8.8', { timeout: 5000 }); }
+    }),
     checkSource('urlhaus', async () => {
       if (!process.env.URLHAUS_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
       await axios.post('https://urlhaus-api.abuse.ch/v1/host/', new URLSearchParams({ host: '8.8.8.8' }), { headers: { 'Auth-Key': process.env.URLHAUS_API_KEY }, timeout: 5000 });

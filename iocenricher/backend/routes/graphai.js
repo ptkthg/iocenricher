@@ -1,11 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const { normalizeIndicator } = require('../services/indicator');
 
 router.post('/graph/ai-summary', async (req, res) => {
-  const { graphData } = req.body;
-  if (!graphData) return res.status(400).json({ error: 'graphData required' });
-  if (!process.env.GROQ_API_KEY) return res.status(500).json({ error: 'GROQ_API_KEY não configurada.' });
+  const { graphData } = req.body || {};
+  if (!graphData || !Array.isArray(graphData.nodes) || !Array.isArray(graphData.edges) || graphData.nodes.length > 100 || graphData.edges.length > 200) return res.status(400).json({ error: 'Grafo inválido ou grande demais.' });
+  try { normalizeIndicator(graphData.indicator); } catch { return res.status(400).json({ error: 'Indicador inválido.' }); }
+  if (graphData.nodes.some(node => typeof node.type !== 'string' || node.type.length > 30 || String(node.fullLabel || node.label || '').length > 200) || graphData.edges.some(edge => String(edge.source || '').length > 250 || String(edge.target || '').length > 250 || String(edge.label || '').length > 100)) return res.status(400).json({ error: 'Grafo inválido.' });
+  if (!process.env.GROQ_API_KEY) return res.status(503).json({ error: 'Análise por IA indisponível.' });
 
   const { nodes, edges, indicator, type } = graphData;
 
@@ -54,7 +57,7 @@ Responda APENAS com JSON válido com estes campos:
     const clean = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     res.json(JSON.parse(clean));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(502).json({ error: 'Análise por IA indisponível.' });
   }
 });
 

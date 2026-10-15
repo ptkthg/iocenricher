@@ -8,7 +8,7 @@ import RelationshipPreview from "../components/RelationshipPreview";
 function ScoreGauge({ score, level }) {
   const cfg = RISK_CFG[level] || RISK_CFG.BAIXO;
   const r = 32, cx = 40, cy = 40, circ = 2 * Math.PI * r;
-  const dash = (score / 100) * circ;
+  const dash = ((score ?? 0) / 100) * circ;
   return (
     <div style={{ position: "relative", width: 80, height: 80 }}>
       <svg width="80" height="80" viewBox="0 0 80 80">
@@ -19,8 +19,8 @@ function ScoreGauge({ score, level }) {
           style={{ transition: "stroke-dasharray 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }} />
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: cfg.color, lineHeight: 1, fontFamily: FONT }}>{score}</span>
-        <span style={{ fontSize: 9, color: C.textMuted, marginTop: 2 }}>/100</span>
+        <span style={{ fontSize: 20, fontWeight: 700, color: cfg.color, lineHeight: 1, fontFamily: FONT }}>{score ?? '—'}</span>
+        {score != null && <span style={{ fontSize: 9, color: C.textMuted, marginTop: 2 }}>/100</span>}
       </div>
     </div>
   );
@@ -100,40 +100,6 @@ function TypePill({ label, active, onClick }) {
       fontSize: 13, fontFamily: FONT, fontWeight: active ? 500 : 400,
       cursor: "pointer", transition: "all 0.15s"
     }}>{label}</button>
-  );
-}
-
-function ActionRow({ icon, iconColor, iconBg, title, desc, btnLabel, btnColor, btnBg, recommended, active, onClick }) {
-  const [done, setDone] = useState(false);
-  function handleClick() {
-    setDone(true);
-    onClick?.();
-    setTimeout(() => setDone(false), 2000);
-  }
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 0", borderBottom: `1px solid ${C.borderSubtle}` }}>
-      <div style={{ width: 36, height: 36, borderRadius: 8, background: active ? btnBg : iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.2s" }}>
-        <Icon name={done ? "check" : icon} size={18} color={active ? btnColor : iconColor} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, color: active ? btnColor : C.text, fontWeight: active ? 600 : 500, marginBottom: 2 }}>{title}</div>
-        <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.4 }}>{desc}</div>
-      </div>
-      <button
-        onClick={handleClick}
-        style={{
-          padding: "7px 18px", borderRadius: 8,
-          background: active || done ? btnBg : "transparent",
-          border: `1px solid ${active || done ? btnColor : btnColor + "66"}`,
-          color: btnColor, fontSize: 12, fontFamily: FONT, fontWeight: active ? 600 : 500,
-          cursor: "pointer", flexShrink: 0, transition: "all 0.2s",
-          display: "flex", alignItems: "center", gap: 6
-        }}
-      >
-        {done && <Icon name="check" size={12} color={btnColor} />}
-        {done ? "Done!" : active ? `✓ ${btnLabel}` : btnLabel}
-      </button>
-    </div>
   );
 }
 
@@ -778,57 +744,45 @@ function VerdictBanner({ result, risk }) {
   const typo = result?.sources?.typosquatting;
 
   // Determine verdict
-  let verdict, verdictLabel, confidence, reason, color, bg, icon;
-
-  const malSources = [
-    vt?.malicious > 0,
-    ab?.abuse_score >= 50,
-    mb?.found,
-    uh?.found,
-    result?.sources?.subnet?.found,
-  ].filter(Boolean).length;
+  let verdict, verdictLabel, reason, color, bg;
 
   if (risk.level === 'INCONCLUSIVO') {
-    verdict = "INCONCLUSIVE"; verdictLabel = "Inconclusive"; confidence = 0;
+    verdict = "INCONCLUSIVE"; verdictLabel = "Inconclusive";
     reason = "Fontes de reputação indisponíveis ou sem resposta. Não é possível concluir que o IOC é benigno.";
-    color = C.textMuted; bg = C.bgInput; icon = "info";
-  } else if (risk.score >= 70 || malSources >= 2) {
+    color = C.textMuted; bg = C.bgInput;
+  } else if (risk.classification === 'MALICIOSO' || ['CRÍTICO', 'ALTO'].includes(risk.level)) {
     verdict = "MALICIOUS";
     verdictLabel = "Malicious";
-    confidence = Math.min(95, 60 + malSources * 10 + Math.floor(risk.score / 10));
     reason = vt?.malicious > 0
       ? `Detected by ${vt.malicious} antivirus engines on VirusTotal`
       : mb?.found ? `Hash confirmed in MalwareBazaar — ${mb.signature || "known malware"}`
       : uh?.found ? `Listed in URLhaus as ${uh.threat || "malicious URL"}`
       : `High abuse score: ${ab?.abuse_score}% confirmed reports`;
-    color = C.red; bg = "rgba(248,113,113,0.08)"; icon = "alert";
-  } else if (risk.score >= 30 || malSources >= 1 || typo?.is_suspicious) {
+    color = C.red; bg = "rgba(248,113,113,0.08)";
+  } else if (risk.classification === 'SUSPEITO' || risk.level === 'MÉDIO') {
     verdict = "SUSPICIOUS";
     verdictLabel = "Suspicious";
-    confidence = Math.min(85, 40 + malSources * 15 + Math.floor(risk.score / 5));
     reason = typo?.is_suspicious
       ? `Possible brand impersonation: imitates "${typo.matches?.[0]?.brand}"`
       : ab?.abuse_score >= 20 ? `Reported for abuse with ${ab.abuse_score}% confidence`
       : `${risk.factors?.[0] || "Multiple suspicious indicators detected"}`;
-    color = C.orange; bg = "rgba(245,158,11,0.08)"; icon = "eye";
-  } else if (risk.score < 10 && !malSources) {
+    color = C.orange; bg = "rgba(245,158,11,0.08)";
+  } else if (risk.classification === 'BAIXO_RISCO_OBSERVADO' || risk.level === 'BAIXO') {
     verdict = "CLEAN";
-    verdictLabel = "Clean";
-    confidence = Math.min(90, 70 + (10 - risk.score) * 2);
+    verdictLabel = "Baixo risco observado";
     reason = vt?.harmless > 0
-      ? `${vt.harmless} classificações inofensivas retornadas pelo VirusTotal`
-      : "As fontes consultadas não forneceram sinais suficientes de ameaça";
-    color = C.green; bg = "rgba(16,185,129,0.08)"; icon = "check";
+      ? `${vt.harmless} classificações inofensivas retornadas pelo VirusTotal; isso não garante segurança`
+      : "As fontes consultadas não apresentaram sinais de ameaça nesta coleta; isso não garante segurança";
+    color = C.green; bg = "rgba(16,185,129,0.08)";
   } else {
     verdict = "INCONCLUSIVE";
     verdictLabel = "Inconclusive";
-    confidence = 50;
     reason = "Insufficient data to make a definitive verdict. Manual investigation recommended";
-    color = C.textMuted; bg = "rgba(136,150,173,0.08)"; icon = "info";
+    color = C.textMuted; bg = "rgba(136,150,173,0.08)";
   }
 
   return (
-    <div style={{
+    <div className="verdict-banner" style={{
       padding: "20px 24px", borderRadius: 14,
       background: bg, border: `1.5px solid ${color}44`,
       display: "flex", alignItems: "center", gap: 20
@@ -837,14 +791,14 @@ function VerdictBanner({ result, risk }) {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0, minWidth: 130, padding: "12px 20px", background: `${color}15`, borderRadius: 12, border: `1px solid ${color}33` }}>
         <div style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: 1.5 }}>Verdict</div>
         <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>{verdictLabel}</div>
-        <div style={{ fontSize: 12, color, opacity: 0.8 }}>Score {risk.score}/100</div>
+        <div style={{ fontSize: 12, color, opacity: 0.8 }}>{risk.score == null ? 'Score indisponível' : `Score ${risk.score}/100`}</div>
       </div>
 
       {/* Divider */}
-      <div style={{ width: 1, height: 60, background: `${color}33`, flexShrink: 0 }} />
+      <div className="verdict-divider" style={{ width: 1, height: 60, background: `${color}33`, flexShrink: 0 }} />
 
       {/* Details */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="verdict-details" style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color, marginBottom: 6 }}>
           {verdict === "MALICIOUS" ? "⚠ Threat Confirmed" :
            verdict === "SUSPICIOUS" ? "⚡ Requires Investigation" :
@@ -852,8 +806,10 @@ function VerdictBanner({ result, risk }) {
         </div>
         <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6, marginBottom: 8 }}>{reason}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Badge color={color} bg={`${color}18`}>Score {risk.score}/100</Badge>
+          <Badge color={color} bg={`${color}18`}>{risk.score == null ? 'Score indisponível' : `Score ${risk.score}/100`}</Badge>
           <Badge color={color} bg={`${color}18`}>{risk.level}</Badge>
+          {risk.confidence && <Badge color={color} bg={`${color}18`}>Confiança {risk.confidence.level}</Badge>}
+          {risk.coverage && <Badge color={color} bg={`${color}18`}>Cobertura {risk.coverage.successful}/{risk.coverage.total}</Badge>}
           <Badge color={color} bg={`${color}18`}>{result.recommendation}</Badge>
           {vt?.malicious > 0 && <Badge color={C.red} bg={C.redBg}>{vt.malicious} AV detections</Badge>}
           {ab?.abuse_score > 0 && <Badge color={C.orange} bg={C.orangeBg}>{ab.abuse_score}% abuse</Badge>}
@@ -861,14 +817,14 @@ function VerdictBanner({ result, risk }) {
       </div>
 
       {/* Score calculated by the backend */}
-      <div style={{ flexShrink: 0 }}>
+      <div className="verdict-gauge" style={{ flexShrink: 0 }}>
         <svg width="80" height="80" viewBox="0 0 80 80">
           <circle cx="40" cy="40" r="32" fill="none" stroke={`${color}22`} strokeWidth="8" />
           <circle cx="40" cy="40" r="32" fill="none" stroke={color} strokeWidth="8"
-            strokeDasharray={`${(risk.score / 100) * 201} 201`}
+            strokeDasharray={`${((risk.score ?? 0) / 100) * 201} 201`}
             strokeLinecap="round"
             transform="rotate(-90 40 40)" />
-          <text x="40" y="44" textAnchor="middle" fill={color} fontSize="16" fontWeight="700" fontFamily={FONT}>{risk.score}</text>
+          <text x="40" y="44" textAnchor="middle" fill={color} fontSize="16" fontWeight="700" fontFamily={FONT}>{risk.score ?? '—'}</text>
         </svg>
       </div>
     </div>
@@ -891,7 +847,7 @@ function ContextTimeline({ result }) {
     mb?.first_seen && { date: mb.first_seen, label: "Added to MalwareBazaar", icon: "alert", color: C.red, detail: mb.signature || "Malicious file" },
     ab?.last_reported && { date: ab.last_reported, label: "Last Abuse Report", icon: "alert", color: C.orange, detail: `${ab.total_reports} total reports · ${ab.abuse_score}% confidence` },
     sh?.last_update && { date: sh.last_update, label: "Last Shodan Scan", icon: "target", color: C.textMuted, detail: `${sh.total_ports} ports · ${sh.total_vulns} CVEs` },
-    { date: result.timestamp, label: "This Analysis", icon: "check", color: C.green, detail: `Score ${result.risk?.score}/100 · ${result.recommendation}`, isNow: true },
+    { date: result.timestamp, label: "This Analysis", icon: "check", color: C.green, detail: `${result.risk?.score == null ? 'Score indisponível' : `Score ${result.risk.score}/100`} · ${result.recommendation}`, isNow: true },
   ].filter(Boolean).sort((a, b) => new Date(a.date) - new Date(b.date));
 
   if (events.length < 2) return null;
@@ -1103,7 +1059,6 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
   const [noteSaved, setNoteSaved] = useState(false);
   const [threatMatch, setThreatMatch] = useState(null);
   const [autoAnalyze, setAutoAnalyze] = useState(false);
-  const [chosenAction, setChosenAction] = useState(null);
 
   // Load saved note when indicator changes
   useEffect(() => {
@@ -1157,11 +1112,10 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
     setError(null);
     setCurrentResult(null);
     setThreatMatch(null);
-    setChosenAction(null);
     try {
       const data = await enrichIndicator(input.trim());
       setCurrentResult(data);
-      const updated = addToHistory(data);
+      const updated = await addToHistory(data);
       setHistory(updated);
 
       // Auto Slack notification for high/critical risk
@@ -1199,22 +1153,6 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `ioc-${currentResult.indicator}-${Date.now()}.json`; a.click();
-  }
-
-  function handleAction(action) {
-    setChosenAction(action);
-    // Save to history
-    try {
-      const HISTORY_KEY = "iocenricher_history";
-      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-      const idx = history.findIndex(h => h.indicator === currentResult?.indicator);
-      if (idx >= 0) {
-        history[idx].recommendation = action;
-        history[idx].action_taken = action;
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-        setHistory(history);
-      }
-    } catch {}
   }
 
   function exportPDF() {
@@ -1255,7 +1193,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
     </div>
     <div style="text-align:right">
       <div style="font-size:18px;font-weight:700;font-family:monospace">${esc(r.indicator)}</div>
-      <span class="badge badge-${r.risk?.level === 'CRÍTICO' ? 'critical' : r.risk?.level === 'ALTO' ? 'high' : r.risk?.level === 'MÉDIO' ? 'medium' : 'low'}">${esc(r.risk?.level || 'INCONCLUSIVO')} · Score ${esc(r.risk?.score ?? 0)}/100</span>
+      <span class="badge badge-${r.risk?.level === 'CRÍTICO' ? 'critical' : r.risk?.level === 'ALTO' ? 'high' : r.risk?.level === 'MÉDIO' ? 'medium' : 'low'}">${esc(r.risk?.level || 'INCONCLUSIVO')} · ${r.risk?.score == null ? 'Score indisponível' : `Score ${esc(r.risk.score)}/100`}</span>
       <div style="font-size:11px;color:#94a3b8;margin-top:4px">Generated: ${new Date().toLocaleString('pt-BR')}</div>
     </div>
   </div>
@@ -1379,7 +1317,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
   const trendData = useMemo(() => {
     if (!result || !risk) return [];
     // Find all past lookups of same indicator from history
-    const sameIndicator = history.filter(h => h.indicator === result.indicator && h.risk?.score !== undefined);
+    const sameIndicator = history.filter(h => h.indicator === result.indicator && typeof h.risk?.score === 'number');
     if (sameIndicator.length >= 3) {
       // Real trend from multiple lookups
       return sameIndicator.slice(-30).map(h => h.risk.score);
@@ -1391,7 +1329,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
       const dayEnd = dayStart + 86400000;
       const dayLookups = history.filter(h => {
         const t = new Date(h.timestamp).getTime();
-        return t >= dayStart && t < dayEnd && h.risk?.score !== undefined;
+        return t >= dayStart && t < dayEnd && typeof h.risk?.score === 'number';
       });
       if (dayLookups.length > 0) {
         return Math.round(dayLookups.reduce((sum, h) => sum + h.risk.score, 0) / dayLookups.length);
@@ -1444,6 +1382,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
               {loading ? "Analisando..." : "Analisar"}
             </Button>
           </div>
+          <div className="toolbar" style={{ marginTop: 12, color: C.textMuted, fontSize: 11 }}><span>Exemplos:</span>{['8.8.8.8', 'example.com', 'https://example.com/'].map(value => <button key={value} className="btn" style={{ padding: '3px 7px', fontSize: 11 }} onClick={() => setInput(value)}>{value}</button>)}</div>
 
           {history.length > 0 && (
             <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -1470,9 +1409,9 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
           )}
         </Card>
 
-        {showResult && sourceIssues.length > 0 && (
+        {showResult && (sourceIssues.length > 0 || result.query_status === 'error') && (
           <div role="status" style={{ padding: '12px 16px', border: `1px solid ${C.yellow}66`, background: C.yellowBg, color: C.text, fontSize: 12, lineHeight: 1.6 }}>
-            <strong style={{ color: C.yellow }}>Análise parcial.</strong> Algumas fontes não responderam; a classificação pode estar incompleta.
+            <strong style={{ color: C.yellow }}>{result.query_status === 'error' ? 'Erro nas consultas externas.' : 'Análise parcial.'}</strong> Algumas fontes não responderam; a classificação pode estar incompleta.
             <div style={{ marginTop: 5, color: C.textMuted }}>
               {sourceIssues.map(([name, status]) => `${sourceNames[name] || name}: ${sourceReasons[status]}`).join(' · ')}
             </div>
@@ -1524,7 +1463,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
                 Risk Score <InfoTooltip text="Composite score 0-100 calculated from VirusTotal detections, URLhaus threats, MalwareBazaar signatures and IP reputation factors." />
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <ScoreGauge score={risk?.score || 0} level={risk?.level} />
+                <ScoreGauge score={risk?.score} level={risk?.level} />
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: cfg?.color, marginBottom: 4 }}>{cfg?.text}</div>
                   <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.4 }}>{cfg?.confidence}</div>
@@ -1534,7 +1473,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
 
             <Card style={{ padding: 18 }}>
               <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-                Verdict <InfoTooltip text="Final classification based on the risk score: CLEAN (0-25), SUSPICIOUS (26-50), MALICIOUS (51-75), CRÍTICO (76-100)." />
+                Veredito <InfoTooltip text="Classificação calculada no backend a partir das evidências disponíveis, com confiança e cobertura separadas do score." />
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
                 <div style={{
@@ -1546,7 +1485,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
                 <Badge color={cfg?.color} bg={cfg?.bg}>{cfg?.label}</Badge>
               </div>
               <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.4 }}>
-                {risk?.factors?.length > 0 ? `${risk.factors.length} risk factors detected` : "No threats detected"}
+                {risk?.factors?.length > 0 ? `${risk.factors.length} fatores documentados` : "Sem evidências suficientes para classificar"}
               </div>
             </Card>
 
@@ -1665,30 +1604,8 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
               <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, color: C.text }}>
                 Recommended Actions <Icon name="info" size={13} color={C.textDim} />
               </h3>
-              <ActionRow icon="block" iconColor={C.red} iconBg={C.redBg}
-                title="Bloquear" desc="Block this indicator in firewalls, proxies and email gateways."
-                btnLabel="Block" btnColor={C.red} btnBg={C.redBg}
-                recommended={result.recommendation === "BLOQUEAR"}
-                active={chosenAction === "BLOQUEAR"}
-                onClick={() => handleAction("BLOQUEAR")} />
-              <ActionRow icon="eye" iconColor={C.orange} iconBg={C.orangeBg}
-                title="Monitorar" desc="Monitor for related activity and new occurrences."
-                btnLabel="Monitor" btnColor={C.orange} btnBg={C.orangeBg}
-                recommended={result.recommendation === "MONITORAR"}
-                active={chosenAction === "MONITORAR"}
-                onClick={() => handleAction("MONITORAR")} />
-              <ActionRow icon="target" iconColor={C.accentLight} iconBg="rgba(59, 130, 246, 0.1)"
-                title="Investigar" desc="Deep dive investigation and threat hunting recommended."
-                btnLabel="Investigate" btnColor={C.accentLight} btnBg="rgba(59, 130, 246, 0.15)"
-                recommended={result.recommendation === "INVESTIGAR"}
-                active={chosenAction === "INVESTIGAR"}
-                onClick={() => handleAction("INVESTIGAR")} />
-              <ActionRow icon="check" iconColor={C.textMuted} iconBg="rgba(136, 150, 173, 0.1)"
-                title="Ignorar" desc="No action needed. Add to allowlist."
-                btnLabel="Ignore" btnColor={C.textMuted} btnBg="rgba(136, 150, 173, 0.1)"
-                recommended={result.recommendation === "IGNORAR"}
-                active={chosenAction === "IGNORAR"}
-                onClick={() => handleAction("IGNORAR")} />
+              <p style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.6 }}>Orientação: <strong style={{ color: C.text }}>{result.recommendation || 'INVESTIGAR'}</strong>. Confirme falsos positivos e impacto operacional antes de qualquer contenção. Nenhuma ação é executada pela plataforma.</p>
+              <div style={{ display: 'grid', gap: 6 }}>{(risk.factors || []).map((factor, index) => <div key={index} style={{ color: C.text, fontSize: 11, lineHeight: 1.5, borderTop: `1px solid ${C.borderSubtle}`, paddingTop: 6 }}>{factor}</div>)}</div>
               <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
                 <Button variant="secondary" onClick={exportPDF} icon={<Icon name="file" size={14} />} style={{ flex: 1, justifyContent: "center" }}>
                   Export PDF
@@ -1893,7 +1810,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
                       </div>
                       <div style={{ fontSize: 10, color: C.textMuted, textTransform: "capitalize" }}>{h.type}</div>
                     </div>
-                    <Badge color={hcfg.color} bg={hcfg.bg}>{h.risk?.score || 0}</Badge>
+                    <Badge color={hcfg.color} bg={hcfg.bg}>{h.risk?.score ?? '—'}</Badge>
                     <span style={{ fontSize: 10, color: C.textDim, flexShrink: 0, minWidth: 36, textAlign: "right" }}>{timeAgo(h.timestamp)}</span>
                   </div>
                 );

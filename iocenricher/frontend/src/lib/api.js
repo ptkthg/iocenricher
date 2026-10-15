@@ -1,3 +1,4 @@
+import { saveInvestigations, clearInvestigations, loadInvestigations } from './investigationStore';
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 export async function enrichIndicator(indicator) {
@@ -15,7 +16,7 @@ export async function enrichIndicator(indicator) {
   return data;
 }
 
-// Storage local — simula um histórico persistente entre sessões
+// Cópia de compatibilidade para abrir a interface antes do IndexedDB responder.
 const STORAGE_KEY = "iocenricher_history";
 
 export function getHistory() {
@@ -26,16 +27,8 @@ export function getHistory() {
   }
 }
 
-export function addToHistory(item) {
-  const list = getHistory();
-  const existing = list.findIndex(x => x.indicator === item.indicator);
-  if (existing >= 0) list.splice(existing, 1);
-  list.unshift({ ...item, _saved_at: Date.now() });
-  const trimmed = list.slice(0, 100);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-  return trimmed;
-}
+export const loadHistory = loadInvestigations;
 
-export function clearHistory() {
-  localStorage.removeItem(STORAGE_KEY);
-}
+export function addToHistory(item) { return saveInvestigations([{ ...item, _saved_at: Date.now() }]); }
+
+export const clearHistory = clearInvestigations;

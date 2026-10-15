@@ -5,9 +5,9 @@ const { parseEml } = require('../services/phishingService');
 // POST /api/phishing/parse
 // Body: { emlContent: string }
 router.post('/phishing/parse', (req, res) => {
-  const { emlContent } = req.body;
+  const { emlContent } = req.body || {};
 
-  if (!emlContent || typeof emlContent !== 'string') {
+  if (!emlContent || typeof emlContent !== 'string' || emlContent.length > 250_000) {
     return res.status(400).json({ error: 'emlContent is required and must be a string.' });
   }
 
@@ -20,7 +20,7 @@ router.post('/phishing/parse', (req, res) => {
     const result = parseEml(emlContent);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Failed to parse EML content.' });
+    res.status(400).json({ error: 'Não foi possível analisar o arquivo EML.' });
   }
 });
 
