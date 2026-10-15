@@ -7,6 +7,8 @@ import IocDiff from '../components/IocDiff';
 import Icon from "../components/Icon";
 import { Card, Badge, Button, Input, PageHeader } from "../components/UI";
 import RelationshipPreview from "../components/RelationshipPreview";
+import SourceStatusTable from '../components/SourceStatusTable';
+import { printInvestigationReport } from '../lib/report';
 
 function ScoreGauge({ score, level }) {
   const cfg = RISK_CFG[level] || RISK_CFG.INCONCLUSIVO;
@@ -319,19 +321,19 @@ function AbuseIPDBCard({ data }) {
         </div>
         <div>
           <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>AbuseIPDB</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Crowd-sourced IP abuse database</p>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Base colaborativa de denúncias de IP</p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          {data.is_tor && <Badge color={C.purple} bg="rgba(167,139,250,0.12)">TOR Exit Node</Badge>}
-          <Badge color={scoreColor} bg={scoreBg}>{data.abuse_score}% Abuse</Badge>
+          {data.is_tor && <Badge color={C.purple} bg="rgba(167,139,250,0.12)">Nó de saída Tor</Badge>}
+          <Badge color={scoreColor} bg={scoreBg}>{data.abuse_score}% abuso</Badge>
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
         {[
-          { label: "Abuse Score", value: `${data.abuse_score}%`, color: scoreColor },
-          { label: "Total Reports", value: data.total_reports?.toLocaleString() || "0", color: data.total_reports > 0 ? C.orange : C.green },
-          { label: "Usage Type", value: data.usage_type || "—", color: C.text },
+          { label: "Confiança de abuso", value: `${data.abuse_score}%`, color: scoreColor },
+          { label: "Denúncias", value: data.total_reports?.toLocaleString() || "0", color: data.total_reports > 0 ? C.orange : C.green },
+          { label: "Tipo de uso", value: data.usage_type || "—", color: C.text },
           { label: "ISP", value: data.isp?.split(" ").slice(0, 2).join(" ") || "—", color: C.textMuted },
         ].map(item => (
           <div key={item.label} style={{ padding: "12px 14px", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10 }}>
@@ -343,8 +345,8 @@ function AbuseIPDBCard({ data }) {
 
       {data.last_reported && (
         <div style={{ fontSize: 12, color: C.textMuted }}>
-          Last reported: <span style={{ color: C.text }}>{new Date(data.last_reported).toLocaleDateString()}</span>
-          {data.domain && <> · Domain: <span style={{ color: C.accentLight }}>{data.domain}</span></>}
+          Última denúncia: <span style={{ color: C.text }}>{new Date(data.last_reported).toLocaleDateString('pt-BR')}</span>
+          {data.domain && <> · Domínio: <span style={{ color: C.accentLight }}>{data.domain}</span></>}
         </div>
       )}
     </Card>
@@ -363,21 +365,21 @@ function ShodanCard({ data }) {
         </div>
         <div>
           <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Shodan</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Network intelligence — ports, services, CVEs</p>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Inteligência de rede: portas, serviços e CVEs</p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           {data.total_vulns > 0 && <Badge color={C.red} bg={C.redBg}>{data.total_vulns} CVEs</Badge>}
-          <Badge color={data.total_ports > 10 ? C.orange : C.textMuted} bg="rgba(136,150,173,0.1)">{data.total_ports} ports</Badge>
+          <Badge color={data.total_ports > 10 ? C.orange : C.textMuted} bg="rgba(136,150,173,0.1)">{data.total_ports} portas</Badge>
         </div>
       </div>
 
       {/* Info row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
         {[
-          { label: "Organization", value: data.org || "—" },
-          { label: "OS", value: data.os || "Unknown" },
+          { label: "Organização", value: data.org || "—" },
+          { label: "Sistema", value: data.os || "Desconhecido" },
           { label: "ASN", value: data.asn || "—" },
-          { label: "Last Scan", value: data.last_update ? new Date(data.last_update).toLocaleDateString() : "—" },
+          { label: "Última coleta", value: data.last_update ? new Date(data.last_update).toLocaleDateString('pt-BR') : "—" },
         ].map(item => (
           <div key={item.label} style={{ padding: "10px 12px", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8 }}>
             <div style={{ fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>{item.label}</div>
@@ -389,7 +391,7 @@ function ShodanCard({ data }) {
       {/* Open ports */}
       {data.ports?.length > 0 && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Open Ports</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Portas abertas</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {data.ports.slice(0, 20).map(port => {
               const isRisky = RISKY_PORTS.includes(port);
@@ -406,7 +408,7 @@ function ShodanCard({ data }) {
                 </div>
               );
             })}
-            {data.ports.length > 20 && <span style={{ fontSize: 12, color: C.textMuted, alignSelf: "center" }}>+{data.ports.length - 20} more</span>}
+            {data.ports.length > 20 && <span style={{ fontSize: 12, color: C.textMuted, alignSelf: "center" }}>+{data.ports.length - 20} outras</span>}
           </div>
         </div>
       )}
@@ -415,7 +417,7 @@ function ShodanCard({ data }) {
       {data.vulns?.length > 0 && (
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>
-            Known Vulnerabilities ({data.vulns.length})
+            Vulnerabilidades associadas ({data.vulns.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {data.vulns.slice(0, 5).map(vuln => (
@@ -433,7 +435,7 @@ function ShodanCard({ data }) {
                 {vuln.summary && <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>{vuln.summary}</div>}
               </div>
             ))}
-            {data.vulns.length > 5 && <div style={{ fontSize: 12, color: C.textMuted }}>+{data.vulns.length - 5} more vulnerabilities</div>}
+            {data.vulns.length > 5 && <div style={{ fontSize: 12, color: C.textMuted }}>+{data.vulns.length - 5} outras vulnerabilidades</div>}
           </div>
         </div>
       )}
@@ -441,7 +443,7 @@ function ShodanCard({ data }) {
       {/* Services */}
       {data.services?.length > 0 && (
         <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Services Detected</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Serviços identificados</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {data.services.filter(s => s.product).slice(0, 5).map((s, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, padding: "6px 12px", background: C.bgInput, borderRadius: 7 }}>
@@ -465,10 +467,10 @@ function PassiveDNSCard({ data, type }) {
         </div>
         <div>
           <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Passive DNS</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Historical DNS resolutions via HackerTarget</p>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Resoluções DNS históricas via HackerTarget</p>
         </div>
         <Badge color={C.accentLight} bg="rgba(59,130,246,0.1)" style={{ marginLeft: "auto" }}>
-          {data.total} records
+          {data.total} registros
         </Badge>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -477,7 +479,7 @@ function PassiveDNSCard({ data, type }) {
             {item}
           </span>
         ))}
-        {data.total > 20 && <span style={{ fontSize: 12, color: C.textMuted, alignSelf: "center" }}>+{data.total - 20} more</span>}
+        {data.total > 20 && <span style={{ fontSize: 12, color: C.textMuted, alignSelf: "center" }}>+{data.total - 20} outros</span>}
       </div>
     </Card>
   );
@@ -494,18 +496,18 @@ function WHOISCard({ data }) {
         </div>
         <div>
           <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>WHOIS / RDAP</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Domain registration details</p>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Dados de registro do domínio</p>
         </div>
-        {data.age_days !== null && (
+        {data.age_days != null && (
           <Badge color={ageColor} bg={ageBg} style={{ marginLeft: "auto" }}>
-            {data.age_days < 30 ? "⚠ Very New" : data.age_days < 90 ? "Recent" : "Established"} ({data.age_days}d)
+            {data.age_days < 30 ? "⚠ Muito recente" : data.age_days < 90 ? "Recente" : "Estabelecido"} ({data.age_days} dias)
           </Badge>
         )}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
         {[
-          { label: "Registered", value: data.created ? new Date(data.created).toLocaleDateString() : "—" },
-          { label: "Expires", value: data.expires ? new Date(data.expires).toLocaleDateString() : "—" },
+          { label: "Registrado", value: data.created ? new Date(data.created).toLocaleDateString('pt-BR') : "—" },
+          { label: "Expira", value: data.expires ? new Date(data.expires).toLocaleDateString('pt-BR') : "—" },
           { label: "Registrar", value: data.registrar?.split(' ').slice(0,2).join(' ') || "—" },
         ].map(item => (
           <div key={item.label} style={{ padding: "10px 12px", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8 }}>
@@ -516,7 +518,7 @@ function WHOISCard({ data }) {
       </div>
       {data.nameservers?.length > 0 && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Nameservers</div>
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Servidores DNS</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {data.nameservers.map((ns, i) => (
               <span key={i} style={{ padding: "3px 8px", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 11, color: C.textMuted, fontFamily: "monospace" }}>{ns}</span>
@@ -536,23 +538,23 @@ function SSLCard({ data }) {
           <SourceLogo name="ssl" />
         </div>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>SSL/TLS Certificates</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Certificate transparency logs via crt.sh</p>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Certificados SSL/TLS</h3>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Registros de transparência de certificados via crt.sh</p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-          {data.has_expired && <Badge color={C.orange} bg={C.orangeBg}>Expired cert</Badge>}
-          {data.has_self_signed && <Badge color={C.red} bg={C.redBg}>Self-signed</Badge>}
+          {data.has_expired && <Badge color={C.orange} bg={C.orangeBg}>Certificado expirado</Badge>}
+          {data.has_self_signed && <Badge color={C.red} bg={C.redBg}>Autoassinado</Badge>}
           <Badge color={C.textMuted} bg="rgba(136,150,173,0.1)">{data.total} total</Badge>
         </div>
       </div>
       {data.related_domains?.length > 0 && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Related Domains in Same Certificate ({data.related_domains.length})</div>
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Domínios no mesmo certificado ({data.related_domains.length})</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {data.related_domains.slice(0, 15).map((d, i) => (
               <span key={i} style={{ padding: "3px 10px", background: "rgba(59,130,246,0.08)", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, color: C.accentLight, fontFamily: "monospace" }}>{d}</span>
             ))}
-            {data.related_domains.length > 15 && <span style={{ fontSize: 12, color: C.textMuted, alignSelf: "center" }}>+{data.related_domains.length - 15} more</span>}
+            {data.related_domains.length > 15 && <span style={{ fontSize: 12, color: C.textMuted, alignSelf: "center" }}>+{data.related_domains.length - 15} outros</span>}
           </div>
         </div>
       )}
@@ -563,7 +565,7 @@ function SSLCard({ data }) {
               <div style={{ fontSize: 12, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cert.common_name}</div>
               <div style={{ fontSize: 11, color: C.textMuted }}>{cert.issuer?.split('O=')[1]?.split(',')[0] || cert.issuer?.slice(0, 50)}</div>
             </div>
-            {cert.is_expired ? <Badge color={C.orange} bg={C.orangeBg}>Expired</Badge> : <Badge color={C.green} bg={C.greenBg}>Valid</Badge>}
+            {cert.is_expired ? <Badge color={C.orange} bg={C.orangeBg}>Expirado</Badge> : <Badge color={C.green} bg={C.greenBg}>Válido</Badge>}
           </div>
         ))}
       </div>
@@ -579,11 +581,11 @@ function SubnetCard({ data }) {
           <SourceLogo name="subnet" />
         </div>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Subnet Intelligence</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>{data.subnet} — cross-referenced with Feodo Tracker</p>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Inteligência de sub-rede</h3>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>{data.subnet} — dados do Feodo Tracker</p>
         </div>
         <Badge color={data.total_malicious >= 5 ? C.red : C.orange} bg={data.total_malicious >= 5 ? C.redBg : C.orangeBg} style={{ marginLeft: "auto" }}>
-          {data.total_malicious} malicious IPs nearby
+          {data.total_malicious} IPs sinalizados na mesma sub-rede
         </Badge>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
@@ -613,8 +615,8 @@ function TyposquattingCard({ data }) {
           <Icon name="alert" size={16} color={C.red} />
         </div>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.red }}>⚠ Brand Impersonation Detected</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Typosquatting / phishing domain analysis</p>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.red }}>⚠ Possível imitação de marca</h3>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Heurística de typosquatting e phishing</p>
         </div>
         <Badge color={C.red} bg={C.redBg} style={{ marginLeft: "auto" }}>Score {data.score}/100</Badge>
       </div>
@@ -623,7 +625,7 @@ function TyposquattingCard({ data }) {
           {data.matches.map((m, i) => (
             <div key={i} style={{ padding: "10px 14px", background: m.confidence === "HIGH" ? "rgba(248,113,113,0.08)" : "rgba(245,158,11,0.08)", border: `1px solid ${m.confidence === "HIGH" ? C.red : C.orange}33`, borderRadius: 8, display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: m.confidence === "HIGH" ? C.red : C.orange }}>Imitates "{m.brand}"</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: m.confidence === "HIGH" ? C.red : C.orange }}>Assemelha-se a "{m.brand}"</span>
                 <span style={{ fontSize: 12, color: C.textMuted }}> — {m.technique}</span>
               </div>
               <Badge color={m.confidence === "HIGH" ? C.red : C.orange} bg="transparent">{m.confidence}</Badge>
@@ -655,7 +657,7 @@ function VerdictBanner({ result, risk }) {
   // Determine verdict
   let verdict, verdictLabel, reason, color, bg;
 
-  if (result?.query_status === 'error') {
+  if (result?.query_status === 'error' && risk.classification === 'INCONCLUSIVO') {
     verdict = "QUERY_ERROR"; verdictLabel = "Erro de consulta";
     reason = "A consulta falhou. Nenhuma conclusão de reputação pode ser feita nesta coleta.";
     color = C.textMuted; bg = C.bgInput;
@@ -665,20 +667,20 @@ function VerdictBanner({ result, risk }) {
     color = C.textMuted; bg = C.bgInput;
   } else if (risk.classification === 'MALICIOSO' || ['CRÍTICO', 'ALTO'].includes(risk.level)) {
     verdict = "MALICIOUS";
-    verdictLabel = "Malicious";
+    verdictLabel = "Malicioso";
     reason = vt?.malicious > 0
-      ? `Detected by ${vt.malicious} antivirus engines on VirusTotal`
-      : mb?.found ? `Hash confirmed in MalwareBazaar — ${mb.signature || "known malware"}`
-      : uh?.found ? `Listed in URLhaus as ${uh.threat || "malicious URL"}`
+      ? `${vt.malicious} motores do VirusTotal marcaram o IOC como malicioso`
+      : mb?.found ? `Amostra encontrada no MalwareBazaar — ${mb.signature || "assinatura não informada"}`
+      : uh?.found ? `IOC listado no URLhaus — ${uh.threat || "ameaça não especificada"}`
       : risk.factors?.[0] || 'Há evidências de risco nesta coleta; confira os fatores e a fonte original.';
     color = C.red; bg = "rgba(248,113,113,0.08)";
   } else if (risk.classification === 'SUSPEITO' || risk.level === 'MÉDIO') {
     verdict = "SUSPICIOUS";
-    verdictLabel = "Suspicious";
+    verdictLabel = "Suspeito";
     reason = typo?.is_suspicious
-      ? `Possible brand impersonation: imitates "${typo.matches?.[0]?.brand}"`
-      : ab?.abuse_score >= 20 ? `Reported for abuse with ${ab.abuse_score}% confidence`
-      : `${risk.factors?.[0] || "Multiple suspicious indicators detected"}`;
+      ? `Possível imitação da marca "${typo.matches?.[0]?.brand || 'não informada'}"`
+      : ab?.abuse_score >= 20 ? `AbuseIPDB informa ${ab.abuse_score}% de confiança de abuso`
+      : `${risk.factors?.[0] || "Sinais suspeitos encontrados; revise as fontes"}`;
     color = C.orange; bg = "rgba(245,158,11,0.08)";
   } else if (risk.classification === 'BAIXO_RISCO_OBSERVADO' || risk.level === 'BAIXO') {
     verdict = "CLEAN";
@@ -702,7 +704,7 @@ function VerdictBanner({ result, risk }) {
     }}>
       {/* Big verdict */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0, minWidth: 130, padding: "12px 20px", background: `${color}15`, borderRadius: 12, border: `1px solid ${color}33` }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: 1.5 }}>Verdict</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: 1.5 }}>Classificação</div>
         <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>{verdictLabel}</div>
         <div style={{ fontSize: 12, color, opacity: 0.8 }}>{risk.score == null ? 'Score indisponível' : `Score ${risk.score}/100`}</div>
       </div>
@@ -724,8 +726,8 @@ function VerdictBanner({ result, risk }) {
           {risk.confidence && <Badge color={color} bg={`${color}18`}>Confiança {risk.confidence.level}</Badge>}
           {risk.coverage && <Badge color={color} bg={`${color}18`}>Cobertura {risk.coverage.successful}/{risk.coverage.total}</Badge>}
           <Badge color={color} bg={`${color}18`}>{result.recommendation}</Badge>
-          {vt?.malicious > 0 && <Badge color={C.red} bg={C.redBg}>{vt.malicious} AV detections</Badge>}
-          {ab?.abuse_score > 0 && <Badge color={C.orange} bg={C.orangeBg}>{ab.abuse_score}% abuse</Badge>}
+          {vt?.malicious > 0 && <Badge color={C.red} bg={C.redBg}>{vt.malicious} detecções</Badge>}
+          {ab?.abuse_score > 0 && <Badge color={C.orange} bg={C.orangeBg}>{ab.abuse_score}% abuso</Badge>}
         </div>
       </div>
 
@@ -754,13 +756,13 @@ function ContextTimeline({ result }) {
   const whoisData = result?.sources?.whois;
 
   const events = [
-    whoisData?.created && { date: whoisData.created, label: "Domain Registered", icon: "globe", color: C.accentLight, detail: whoisData.registrar?.split(" ").slice(0,2).join(" ") || "" },
+    whoisData?.created && { date: whoisData.created, label: "Domínio registrado", icon: "globe", color: C.accentLight, detail: whoisData.registrar?.split(" ").slice(0,2).join(" ") || "" },
     vt?.first_seen && { date: new Date(vt.first_seen * 1000).toISOString(), label: "Primeira observação no VirusTotal", icon: "search", color: "#394EFF", detail: "Data informada pela fonte; a reputação atual pode ser diferente." },
-    uh?.first_seen && { date: uh.first_seen, label: "Reported to URLhaus", icon: "alert", color: C.red, detail: uh.threat || "Malware distribution" },
-    mb?.first_seen && { date: mb.first_seen, label: "Added to MalwareBazaar", icon: "alert", color: C.red, detail: mb.signature || "Malicious file" },
+    uh?.first_seen && { date: uh.first_seen, label: "Registrado no URLhaus", icon: "alert", color: C.red, detail: uh.threat || "Ameaça não especificada" },
+    mb?.first_seen && { date: mb.first_seen, label: "Registrado no MalwareBazaar", icon: "alert", color: C.red, detail: mb.signature || "Assinatura não informada" },
     ab?.last_reported && { date: ab.last_reported, label: "Last Abuse Report", icon: "alert", color: C.orange, detail: `${ab.total_reports} total reports · ${ab.abuse_score}% confidence` },
     sh?.last_update && { date: sh.last_update, label: "Last Shodan Scan", icon: "target", color: C.textMuted, detail: `${sh.total_ports} ports · ${sh.total_vulns} CVEs` },
-    { date: result.timestamp, label: "This Analysis", icon: "check", color: C.green, detail: `${result.risk?.score == null ? 'Score indisponível' : `Score ${result.risk.score}/100`} · ${result.recommendation}`, isNow: true },
+    { date: result.timestamp, label: "Esta análise", icon: "check", color: C.green, detail: `${result.risk?.score == null ? 'Score indisponível' : `Score ${result.risk.score}/100`} · ${result.recommendation}`, isNow: true },
   ].filter(Boolean).sort((a, b) => new Date(a.date) - new Date(b.date));
 
   if (events.length < 2) return null;
@@ -772,8 +774,8 @@ function ContextTimeline({ result }) {
           <Icon name="clock" size={16} color={C.accentLight} />
         </div>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Context Timeline</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Historical activity across all intelligence sources</p>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Linha do tempo</h3>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Datas informadas pelas fontes consultadas</p>
         </div>
         <div style={{ marginLeft: "auto", fontSize: 12, color: C.textMuted }}>
           {events.length} events spanning {
@@ -816,12 +818,11 @@ function ContextTimeline({ result }) {
 }
 
 // ─── INVESTIGATOR CHECKLIST ───────────────────────────────────────────────────
-const CHECKLIST_KEY = "ioc_checklist_";
+const CHECKLIST_KEY = "ioc_checklist_v2_";
 
 function generateChecklist(result, risk) {
   const type = result?.type;
   const level = risk?.level;
-  const vt = result?.sources?.virustotal;
   const ab = result?.sources?.abuseipdb;
   const sh = result?.sources?.shodan;
   const subnet = result?.sources?.subnet;
@@ -830,40 +831,40 @@ function generateChecklist(result, risk) {
   const items = [];
 
   // Universal
-  items.push({ id: "siem", text: `Search for "${result.indicator}" in SIEM/firewall logs (last 30 days)`, priority: "HIGH" });
-  items.push({ id: "scope", text: "Determine scope: how many internal assets communicated with this IOC?", priority: "HIGH" });
+  items.push({ id: "siem", text: `Buscar "${result.indicator}" nos logs de SIEM, proxy e firewall; ajustar a janela temporal ao caso`, priority: "HIGH" });
+  items.push({ id: "scope", text: "Identificar ativos internos que tiveram contato com o IOC e registrar horários e contexto", priority: "HIGH" });
 
   if (type === "ip") {
-    items.push({ id: "block", text: "Block IP at perimeter firewall and endpoint security if confirmed malicious", priority: level === "CRÍTICO" ? "HIGH" : "MEDIUM" });
-    items.push({ id: "geo", text: "Verify if this IP origin country is expected for your environment", priority: "MEDIUM" });
-    if (ab?.is_tor) items.push({ id: "tor", text: "Check for Tor usage policy violations — flag all internal hosts using Tor", priority: "HIGH" });
-    if (sh?.total_vulns > 0) items.push({ id: "cve", text: `Verify if internal systems are vulnerable to detected CVEs (${sh.total_vulns} found)`, priority: "HIGH" });
-    if (subnet?.found) items.push({ id: "subnet", text: `Investigate ${subnet.total_malicious} other malicious IPs in same /24 subnet`, priority: "MEDIUM" });
-    if (mitre.some(t => t.tactic === "Command and Control")) items.push({ id: "c2", text: "Check for C2 beaconing patterns in network traffic (regular intervals, unusual data volume)", priority: "HIGH" });
+    items.push({ id: "block", text: "Avaliar contenção do IP somente após confirmar atividade maliciosa, falsos positivos e impacto; solicitar aprovação", priority: level === "CRÍTICO" ? "HIGH" : "MEDIUM" });
+    items.push({ id: "geo", text: "Verificar se a localização informada para o IP é esperada no contexto operacional", priority: "MEDIUM" });
+    if (ab?.is_tor) items.push({ id: "tor", text: "Verificar se o uso de Tor contraria a política da organização antes de concluir abuso", priority: "HIGH" });
+    if (sh?.total_vulns > 0) items.push({ id: "cve", text: `Revisar ${sh.total_vulns} CVE(s) informadas pelo Shodan e verificar exposição dos ativos próprios`, priority: "HIGH" });
+    if (subnet?.found) items.push({ id: "subnet", text: `Revisar ${subnet.total_malicious} IP(s) sinalizados na mesma /24; proximidade não comprova associação`, priority: "MEDIUM" });
+    if (mitre.some(t => t.tactic === "Command and Control")) items.push({ id: "c2", text: "Verificar padrões periódicos de comunicação na telemetria de rede", priority: "HIGH" });
   }
 
   if (type === "domain" || type === "url") {
-    items.push({ id: "dns", text: `Search DNS query logs for internal hosts resolving ${result.indicator}`, priority: "HIGH" });
-    items.push({ id: "proxy", text: "Block domain/URL in web proxy and DNS filter", priority: level === "CRÍTICO" ? "HIGH" : "MEDIUM" });
-    if (typo?.is_suspicious) items.push({ id: "typo", text: `Alert users about phishing domain impersonating "${typo.matches?.[0]?.brand}" — send awareness email`, priority: "HIGH" });
-    items.push({ id: "certs", text: "Review SSL certificate for related malicious domains in same certificate", priority: "MEDIUM" });
-    if (mitre.some(t => t.tactic === "Initial Access")) items.push({ id: "phish", text: "Check email gateway logs for messages containing this domain/URL", priority: "HIGH" });
+    items.push({ id: "dns", text: `Buscar consultas DNS e acessos de proxy relacionados a ${result.indicator}`, priority: "HIGH" });
+    items.push({ id: "proxy", text: "Avaliar bloqueio de domínio ou URL após confirmar a ameaça e o impacto; solicitar aprovação", priority: level === "CRÍTICO" ? "HIGH" : "MEDIUM" });
+    if (typo?.is_suspicious) items.push({ id: "typo", text: `Investigar possível imitação de "${typo.matches?.[0]?.brand || 'marca não informada'}" e confirmar a hipótese antes de comunicar usuários`, priority: "HIGH" });
+    items.push({ id: "certs", text: "Revisar certificados e domínios associados; certificado compartilhado não comprova campanha comum", priority: "MEDIUM" });
+    if (mitre.some(t => t.tactic === "Initial Access")) items.push({ id: "phish", text: "Buscar mensagens com o domínio ou URL nos registros do gateway de e-mail", priority: "HIGH" });
   }
 
   if (type === "hash") {
-    items.push({ id: "edr", text: "Search EDR/endpoint logs for this file hash across all endpoints", priority: "HIGH" });
-    items.push({ id: "quarantine", text: "Check quarantine records — was this file already blocked automatically?", priority: "HIGH" });
-    items.push({ id: "origin", text: "Determine file origin: email attachment, download, USB, or lateral movement", priority: "HIGH" });
-    items.push({ id: "parent", text: "Identify parent process that executed this file (process tree analysis)", priority: "MEDIUM" });
+    items.push({ id: "edr", text: "Buscar o hash em eventos de EDR e endpoints", priority: "HIGH" });
+    items.push({ id: "quarantine", text: "Verificar registros de quarentena e confirmar se houve execução do arquivo", priority: "HIGH" });
+    items.push({ id: "origin", text: "Identificar a origem observada do arquivo: anexo, download, USB ou outro vetor", priority: "HIGH" });
+    items.push({ id: "parent", text: "Revisar árvore de processos e identificar o processo pai quando houver execução", priority: "MEDIUM" });
   }
 
   // Universal closers
   if (level === "CRÍTICO" || level === "ALTO") {
-    items.push({ id: "escalate", text: "Escalate to Tier 2/3 or Incident Response team if active compromise confirmed", priority: "HIGH" });
-    items.push({ id: "ticket", text: "Open incident ticket and document all findings with evidence", priority: "MEDIUM" });
-    items.push({ id: "ioc_expand", text: "Extract related IOCs and pivot: same ASN, same certificate, same campaign", priority: "MEDIUM" });
+    items.push({ id: "escalate", text: "Escalar à resposta a incidentes se o comprometimento ativo for confirmado", priority: "HIGH" });
+    items.push({ id: "ticket", text: "Registrar o caso e documentar achados com origem e horário das evidências", priority: "MEDIUM" });
+    items.push({ id: "ioc_expand", text: "Pesquisar IOCs relacionados por evidências diretas; ASN ou certificado compartilhado isoladamente não prova campanha", priority: "MEDIUM" });
   }
-  items.push({ id: "close", text: "Document verdict and close investigation — update playbook if new TTPs found", priority: "LOW" });
+  items.push({ id: "close", text: "Documentar conclusão, limitações e decisões antes de encerrar a investigação", priority: "LOW" });
 
   return items;
 }
@@ -888,9 +889,9 @@ function InvestigatorChecklist({ result, risk }) {
   const pct = Math.round((done / items.length) * 100);
 
   const PRIORITY_CFG = {
-    HIGH:   { color: C.red,       bg: C.redBg,    label: "High" },
-    MEDIUM: { color: C.orange,    bg: C.orangeBg, label: "Med" },
-    LOW:    { color: C.textMuted, bg: "rgba(136,150,173,0.1)", label: "Low" },
+    HIGH:   { color: C.red,       bg: C.redBg,    label: "Alta" },
+    MEDIUM: { color: C.orange,    bg: C.orangeBg, label: "Média" },
+    LOW:    { color: C.textMuted, bg: "rgba(136,150,173,0.1)", label: "Baixa" },
   };
 
   function toggle(id) { setChecked(c => ({ ...c, [id]: !c[id] })); }
@@ -903,18 +904,18 @@ function InvestigatorChecklist({ result, risk }) {
           <Icon name="check" size={16} color={C.green} />
         </div>
         <div style={{ flex: 1 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Investigator Checklist</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Auto-generated for this IOC type and risk level</p>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Checklist do analista</h3>
+          <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Etapas sugeridas conforme o IOC e os sinais observados; marque somente após executar cada verificação.</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 12, color: done === items.length ? C.green : C.textMuted }}>
-            {done}/{items.length} done
+            {done}/{items.length} concluídas
           </span>
           <div style={{ width: 60, height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
             <div style={{ width: `${pct}%`, height: "100%", background: done === items.length ? C.green : C.accentLight, borderRadius: 3, transition: "width 0.3s" }} />
           </div>
           {done > 0 && (
-            <button onClick={clearAll} style={{ background: "none", border: "none", color: C.textDim, fontSize: 11, cursor: "pointer", fontFamily: FONT }}>Reset</button>
+            <button onClick={clearAll} style={{ background: "none", border: "none", color: C.textDim, fontSize: 11, cursor: "pointer", fontFamily: FONT }}>Limpar marcações</button>
           )}
         </div>
       </div>
@@ -928,12 +929,13 @@ function InvestigatorChecklist({ result, risk }) {
           <div key={p} style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: pcfg.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: pcfg.color, display: "inline-block" }} />
-              {pcfg.label} Priority
+              Prioridade {pcfg.label}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {group.map(item => (
-                <div key={item.id}
+                <div key={item.id} role="checkbox" tabIndex={0} aria-checked={Boolean(checked[item.id])}
                   onClick={() => toggle(item.id)}
+                  onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(item.id); } }}
                   style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 14px", background: checked[item.id] ? "rgba(16,185,129,0.06)" : C.bgInput, border: `1px solid ${checked[item.id] ? C.green + "44" : C.border}`, borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }}
                   onMouseEnter={e => { if (!checked[item.id]) e.currentTarget.style.borderColor = C.accent + "55"; }}
                   onMouseLeave={e => { if (!checked[item.id]) e.currentTarget.style.borderColor = C.border; }}
@@ -953,7 +955,7 @@ function InvestigatorChecklist({ result, risk }) {
 
       {done === items.length && (
         <div style={{ marginTop: 12, padding: "12px 16px", background: C.greenBg, border: `1px solid ${C.green}44`, borderRadius: 8, textAlign: "center", fontSize: 13, color: C.green, fontWeight: 600 }}>
-          ✓ Investigation complete! All checklist items reviewed.
+          ✓ Todas as etapas foram marcadas. Confirme que as verificações foram realizadas antes de encerrar o caso.
         </div>
       )}
     </Card>
@@ -1062,88 +1064,12 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
     const blob = new Blob([JSON.stringify(currentResult, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `ioc-${currentResult.indicator}-${Date.now()}.json`; a.click();
+    a.href = url; a.download = `ioc-${currentResult.type}-${Date.now()}.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function exportPDF() {
-    if (!currentResult) return;
-    const r = currentResult;
-    const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>IOC Report — ${esc(r.indicator)}</title>
-  <style>
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; margin: 0; padding: 32px; font-size: 13px; }
-    .header { border-bottom: 3px solid #3b82f6; padding-bottom: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
-    .logo { font-size: 20px; font-weight: 700; color: #3b82f6; }
-    .badge { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-    .badge-critical { background: #fee2e2; color: #dc2626; }
-    .badge-high { background: #fef3c7; color: #d97706; }
-    .badge-medium { background: #fefce8; color: #ca8a04; }
-    .badge-low { background: #dcfce7; color: #16a34a; }
-    .badge-unknown { background: #e8edf0; color: #52646d; }
-    .section { margin-bottom: 20px; }
-    .section-title { font-size: 14px; font-weight: 700; color: #1e40af; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .field { background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0; }
-    .field-label { font-size: 10px; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px; margin-bottom: 4px; }
-    .field-value { font-size: 13px; font-weight: 500; color: #1e293b; }
-    .factor { padding: 6px 10px; background: #fff7ed; border-left: 3px solid #f59e0b; margin-bottom: 6px; font-size: 12px; border-radius: 0 6px 6px 0; }
-    .mitre-tag { display: inline-block; margin: 3px; padding: 3px 10px; background: #fff1f2; color: #dc2626; border-radius: 5px; font-size: 11px; font-weight: 600; font-family: monospace; }
-    .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #94a3b8; text-align: center; }
-    @media print { body { padding: 20px; } }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="logo">🛡 IOC Enricher</div>
-      <div style="font-size:12px;color:#64748b;margin-top:4px">Blue Team Intelligence Platform</div>
-    </div>
-    <div style="text-align:right">
-      <div style="font-size:18px;font-weight:700;font-family:monospace">${esc(r.indicator)}</div>
-      <span class="badge badge-${r.risk?.level === 'CRÍTICO' ? 'critical' : r.risk?.level === 'ALTO' ? 'high' : r.risk?.level === 'MÉDIO' ? 'medium' : r.risk?.level === 'BAIXO' ? 'low' : 'unknown'}">${esc(r.query_status === 'error' ? 'ERRO DE CONSULTA' : r.risk?.level || 'INCONCLUSIVO')} · ${r.risk?.score == null ? 'Score indisponível' : `Score ${esc(r.risk.score)}/100`}</span>
-      <div style="font-size:11px;color:#94a3b8;margin-top:4px">Generated: ${new Date().toLocaleString('pt-BR')}</div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Indicator Details</div>
-    <div class="grid">
-      <div class="field"><div class="field-label">Type</div><div class="field-value">${esc(r.type?.toUpperCase())}</div></div>
-      <div class="field"><div class="field-label">Recommendation</div><div class="field-value">${esc(r.recommendation || '—')}</div></div>
-      ${r.sources?.ipinfo?.country ? `<div class="field"><div class="field-label">Country</div><div class="field-value">${esc(r.sources.ipinfo.country)} · ${esc(r.sources.ipinfo.city)}</div></div>` : ''}
-      ${r.sources?.ipinfo?.org ? `<div class="field"><div class="field-label">Organization</div><div class="field-value">${esc(r.sources.ipinfo.org)}</div></div>` : ''}
-      ${r.sources?.abuseipdb ? `<div class="field"><div class="field-label">Abuse Score</div><div class="field-value">${esc(r.sources.abuseipdb.abuse_score)}% (${esc(r.sources.abuseipdb.total_reports)} reports)</div></div>` : ''}
-      ${r.sources?.shodan ? `<div class="field"><div class="field-label">Open Ports</div><div class="field-value">${esc(r.sources.shodan.ports?.slice(0,8).join(', ') || '—')}</div></div>` : ''}
-    </div>
-  </div>
-
-  ${r.risk?.factors?.length > 0 ? `<div class="section">
-    <div class="section-title">Risk Factors (${r.risk.factors.length})</div>
-    ${r.risk.factors.map(f => `<div class="factor">${esc(f)}</div>`).join('')}
-  </div>` : ''}
-
-  ${r.mitre?.length > 0 ? `<div class="section">
-    <div class="section-title">MITRE ATT&CK Techniques</div>
-    ${r.mitre.map(t => `<span class="mitre-tag">${esc(t.id)} — ${esc(t.name)}</span>`).join('')}
-  </div>` : ''}
-
-  ${r.ai_analysis?.summary ? `<div class="section">
-    <div class="section-title">AI Analysis</div>
-    <p style="line-height:1.7;color:#334155">${esc(r.ai_analysis.summary)}</p>
-    ${r.ai_analysis.recommendations?.length > 0 ? `<div style="margin-top:12px"><strong>Recommended Actions:</strong><ol style="margin:8px 0;padding-left:20px;color:#334155">${r.ai_analysis.recommendations.map(a => `<li style="margin-bottom:4px">${esc(a)}</li>`).join('')}</ol></div>` : ''}
-  </div>` : ''}
-
-  <div class="footer">IOC Enricher — Blue Team Intelligence Platform · ${new Date().getFullYear()}</div>
-  <script>window.onload = () => window.print();</script>
-</body>
-</html>`;
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+    if (currentResult && !printInvestigationReport([currentResult])) setError('Permita janelas deste site para imprimir o relatório.');
   }
 
   const result = currentResult;
@@ -1164,7 +1090,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
   const sourcesList = result ? [
     vt && {
       name: "VirusTotal", logoKey: "virustotal",
-      result: `${vt.malicious || 0} / ${(vt.malicious || 0) + (vt.suspicious || 0) + (vt.harmless || 0)} engines detected`,
+      result: `${vt.malicious || 0} malicioso(s), ${vt.suspicious || 0} suspeito(s) entre ${(vt.malicious || 0) + (vt.suspicious || 0) + (vt.harmless || 0)} classificações`,
       resultColor: vt.malicious > 0 ? C.red : C.green,
       conf: vt.malicious > 5 ? "High" : vt.malicious > 0 ? "Medium" : "Low",
       time: timeAgo(result.timestamp)
@@ -1176,51 +1102,51 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
     },
     ab && {
       name: "AbuseIPDB", logoKey: "abuseipdb",
-      result: `${ab.abuse_score}% abuse confidence · ${ab.total_reports} reports`,
+      result: `${ab.abuse_score}% confiança de abuso · ${ab.total_reports} denúncias`,
       resultColor: ab.abuse_score >= 50 ? C.red : ab.abuse_score >= 20 ? C.orange : C.green,
       conf: ab.abuse_score >= 80 ? "High" : ab.abuse_score >= 40 ? "Medium" : "Low",
       time: timeAgo(result.timestamp)
     },
     sh && {
       name: "Shodan", logoKey: "shodan",
-      result: `${sh.total_ports} ports open${sh.total_vulns > 0 ? ` · ${sh.total_vulns} CVEs` : ""}`,
+      result: `${sh.total_ports} portas abertas${sh.total_vulns > 0 ? ` · ${sh.total_vulns} CVEs` : ""}`,
       resultColor: sh.total_vulns > 0 ? C.red : sh.total_ports > 10 ? C.orange : C.text,
       conf: "High", time: timeAgo(result.timestamp)
     },
     pdns?.found && {
       name: "Passive DNS", logoKey: "passivedns",
-      result: `${pdns.total} related domain${pdns.total !== 1 ? "s" : ""} found`,
+      result: `${pdns.total} registro(s) DNS encontrado(s)`,
       resultColor: pdns.total > 5 ? C.orange : C.text, conf: "Medium", time: timeAgo(result.timestamp)
     },
     whoisData?.found && {
       name: "WHOIS", logoKey: "whois",
-      result: whoisData.age_days !== null ? `Registered ${whoisData.age_days}d ago${whoisData.registrar ? ` · ${whoisData.registrar.split(' ')[0]}` : ''}` : "WHOIS data found",
-      resultColor: whoisData.age_days < 30 ? C.red : whoisData.age_days < 90 ? C.orange : C.green,
+      result: whoisData.age_days != null ? `Registrado há ${whoisData.age_days} dias${whoisData.registrar ? ` · ${whoisData.registrar.split(' ')[0]}` : ''}` : "Registro WHOIS encontrado",
+      resultColor: whoisData.age_days == null ? C.text : whoisData.age_days < 30 ? C.red : whoisData.age_days < 90 ? C.orange : C.green,
       conf: "High", time: timeAgo(result.timestamp)
     },
     ssl?.found && {
       name: "SSL/crt.sh", logoKey: "ssl",
-      result: `${ssl.total} cert${ssl.total !== 1 ? "s" : ""} · ${ssl.related_domains?.length || 0} related domains`,
+      result: `${ssl.total} certificado(s) · ${ssl.related_domains?.length || 0} domínio(s) no mesmo certificado`,
       resultColor: ssl.has_expired ? C.orange : C.green, conf: "High", time: timeAgo(result.timestamp)
     },
     subnet?.found && {
       name: "Subnet Intel", logoKey: "subnet",
-      result: `${subnet.total_malicious} malicious IP${subnet.total_malicious !== 1 ? "s" : ""} in same /24`,
+      result: `${subnet.total_malicious} IP(s) sinalizado(s) na mesma /24; relação não comprovada`,
       resultColor: subnet.total_malicious >= 3 ? C.red : C.orange, conf: "High", time: timeAgo(result.timestamp)
     },
     typo?.is_suspicious && {
       name: "Typosquatting", logoKey: "alert",
-      result: typo.matches?.[0] ? `Imitates "${typo.matches[0].brand}" — ${typo.matches[0].technique}` : "Suspicious domain pattern",
+      result: typo.matches?.[0] ? `Possível imitação de "${typo.matches[0].brand}" — ${typo.matches[0].technique}` : "Padrão suspeito de domínio",
       resultColor: C.red, conf: "High", time: timeAgo(result.timestamp)
     },
     uh?.found && {
       name: "URLhaus", logoKey: "urlhaus",
-      result: uh.threat || "Malware Download",
+      result: uh.threat || "IOC encontrado na fonte",
       resultColor: C.red, conf: "High", time: timeAgo(result.timestamp)
     },
     mb?.found && {
       name: "MalwareBazaar", logoKey: "malwarebazaar",
-      result: mb.signature || "Known malware",
+      result: mb.signature || "Amostra encontrada na fonte",
       resultColor: C.red, conf: "High", time: timeAgo(result.timestamp)
     },
   ].filter(Boolean) : [];
@@ -1297,7 +1223,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
 
           {history.length > 0 && (
             <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 12, color: C.textMuted }}>Recent indicators:</span>
+              <span style={{ fontSize: 12, color: C.textMuted }}>Indicadores recentes:</span>
               {history.slice(0, 4).map((h, i) => (
                 <button key={i} onClick={() => { setInput(h.indicator); setCurrentResult(h); }} style={{
                   padding: "5px 12px", background: C.bgInput,
@@ -1371,7 +1297,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
           <div className="fade-in stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
             <Card style={{ padding: 18 }}>
               <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-                Risk Score <InfoTooltip text="Composite score 0-100 calculated from VirusTotal detections, URLhaus threats, MalwareBazaar signatures and IP reputation factors." />
+                Score de risco <InfoTooltip text="Score de 0 a 100 calculado com os sinais disponíveis; consulte os fatores, a confiança e a cobertura antes de concluir." />
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <ScoreGauge score={risk?.score} level={risk?.level} />
@@ -1402,22 +1328,22 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
 
             <Card style={{ padding: 18 }}>
               <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-                Indicator Type <InfoTooltip text="Auto-detected IOC type: IP address (IPv4), Domain, URL (http/https), or Hash (MD5/SHA1/SHA256)." />
+                Tipo de indicador <InfoTooltip text="Tipo detectado automaticamente: IPv4, domínio, URL HTTP/HTTPS ou hash MD5/SHA1/SHA256." />
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                 <Icon name="globe" size={20} color={C.accentLight} />
                 <span style={{ fontSize: 18, fontWeight: 600, color: C.text }}>
-                  {result?.type === "ip" ? "IP Address" : result?.type?.charAt(0).toUpperCase() + result?.type?.slice(1)}
+                  {({ ip: 'Endereço IP', domain: 'Domínio', url: 'URL', hash: 'Hash' })[result?.type] || result?.type}
                 </span>
               </div>
               <span style={{ fontSize: 12, color: C.accentLight }}>
-                {result?.type === "ip" ? "Endereço IP" : `Indicador ${result?.type}`}
+                Tipo identificado na entrada
               </span>
             </Card>
 
             <Card style={{ padding: 18 }}>
               <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-                Last Updated <InfoTooltip text="Timestamp of when this enrichment was performed. Click Re-analyze to fetch fresh data from all sources." />
+                Última coleta <InfoTooltip text="Horário em que a análise foi realizada. Uma nova consulta pode obter dados diferentes." />
               </div>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                 <Icon name="clock" size={20} color={C.accentLight} />
@@ -1439,7 +1365,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
         {showResult && (
           <div className="fade-in detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Card>
-              <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, marginBottom: 16, color: C.text }}>Enrichment Details</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, marginBottom: 16, color: C.text }}>Detalhes do enriquecimento</h3>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <tbody>
                   <DetailRow label="Indicator">
@@ -1483,13 +1409,13 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
         {showResult && sourcesList.length > 0 && (
           <div id="sources" className="fade-in detail-grid" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16 }}>
             <Card>
-              <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, marginBottom: 16, color: C.text }}>Source / Reputation</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, marginBottom: 16, color: C.text }}>Fontes / reputação</h3>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                    <th style={{ textAlign: "left", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>SOURCE</th>
-                    <th style={{ textAlign: "left", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>RESULT</th>
-                    <th style={{ textAlign: "right", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>LAST SEEN</th>
+                    <th style={{ textAlign: "left", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>FONTE</th>
+                    <th style={{ textAlign: "left", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>RESULTADO</th>
+                    <th style={{ textAlign: "right", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>COLETA</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1513,22 +1439,23 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
 
             <Card>
               <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, color: C.text }}>
-                Recommended Actions <Icon name="info" size={13} color={C.textDim} />
+                Próximas verificações <Icon name="info" size={13} color={C.textDim} />
               </h3>
               <p style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.6 }}>Orientação: <strong style={{ color: C.text }}>{result.recommendation || 'INVESTIGAR'}</strong>. Confirme falsos positivos e impacto operacional antes de qualquer contenção. Nenhuma ação é executada pela plataforma.</p>
               <div style={{ display: 'grid', gap: 6 }}>{(risk.factors || []).map((factor, index) => <div key={index} style={{ color: C.text, fontSize: 11, lineHeight: 1.5, borderTop: `1px solid ${C.borderSubtle}`, paddingTop: 6 }}>{factor}</div>)}</div>
               <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
                 <Button variant="secondary" onClick={exportPDF} icon={<Icon name="file" size={14} />} style={{ flex: 1, justifyContent: "center" }}>
-                  Export PDF
+                  Exportar PDF
                 </Button>
                 <Button variant="secondary" onClick={exportJSON} icon={<Icon name="download" size={14} />} style={{ flex: 1, justifyContent: "center" }}>
-                  Export JSON
+                  Exportar JSON
                 </Button>
               </div>
             </Card>
           </div>
         )}
         {showResult && sourcesList.length === 0 && <Card id="sources"><h3 style={{marginTop:0}}>Fontes OSINT</h3><p style={{color:C.textMuted}}>Nenhum resultado de reputação disponível para este IOC. Consulte novamente quando as integrações estiverem acessíveis.</p></Card>}
+        {showResult && <SourceStatusTable statuses={result.source_status} timestamp={result.timestamp} />}
 
         {/* MITRE ATT&CK */}
         {showResult && result.mitre?.length > 0 && (
@@ -1599,16 +1526,16 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
         {!showResult && !loading && (
           <Card style={{ padding: "80px 40px", textAlign: "center" }}>
             <div style={{ fontSize: 56, marginBottom: 16, opacity: 0.4 }}>🔬</div>
-            <h3 style={{ fontSize: 16, color: C.text, margin: 0, marginBottom: 8 }}>Ready to enrich an indicator</h3>
+            <h3 style={{ fontSize: 16, color: C.text, margin: 0, marginBottom: 8 }}>Pronto para investigar um indicador</h3>
             <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>
-              Enter an IP, domain, URL, or hash above to start your investigation.
+              Informe um IP, domínio, URL ou hash acima para iniciar a investigação.
             </p>
           </Card>
         )}
 
         {loading && (
           <Card style={{ padding: 40, textAlign: "center" }}>
-            <div style={{ fontSize: 14, color: C.accentLight, fontWeight: 500, marginBottom: 12 }}>Querying OSINT sources...</div>
+            <div style={{ fontSize: 14, color: C.accentLight, fontWeight: 500, marginBottom: 12 }}>Consultando fontes OSINT...</div>
             <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
               {[0, 1, 2].map(i => (
                 <div key={i} style={{
@@ -1625,7 +1552,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
       <div className="sidebar-right" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <Card>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Analyst Notes</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Notas do analista</h3>
             {currentResult?.indicator && (
               <span style={{ fontSize: 10, color: C.textDim, fontFamily: "monospace", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {currentResult.indicator}
@@ -1635,7 +1562,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
-            placeholder="Add investigation notes, context, observations..."
+            placeholder="Adicione notas, contexto e observações da investigação..."
             rows={5}
             style={{
               width: "100%", padding: 12,
@@ -1654,7 +1581,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
               {tags.map((t, i) => (
                 <span key={i} onClick={() => setTags(tags.filter((_, j) => j !== i))}
-                  title="Click to remove"
+                  title="Clique para remover"
                   style={{ padding: "4px 10px", background: "rgba(59,130,246,0.12)", border: `1px solid ${C.accent}44`, borderRadius: 6, color: C.accentLight, fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
                   {t} <span style={{ opacity: 0.6, fontSize: 10 }}>×</span>
                 </span>
@@ -1666,12 +1593,12 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
                   onChange={e => setNewTag(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter") addTag(); if (e.key === "Escape") { setAddingTag(false); setNewTag(""); } }}
                   onBlur={addTag}
-                  placeholder="tag name..."
+                  placeholder="nome da tag..."
                   style={{ padding: "4px 8px", background: C.bgInput, border: `1px solid ${C.accent}`, borderRadius: 6, color: C.text, fontSize: 11, fontFamily: FONT, outline: "none", width: 90 }}
                 />
               ) : (
                 <button onClick={() => setAddingTag(true)} style={{ padding: "4px 10px", background: "transparent", border: `1px dashed ${C.border}`, borderRadius: 6, color: C.textMuted, fontSize: 11, cursor: "pointer" }}>
-                  + Add tag
+                  + Adicionar tag
                 </button>
               )}
             </div>
@@ -1686,17 +1613,17 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
             style={{ width: "100%", marginTop: 16, justifyContent: "center", background: noteSaved ? C.greenBg : undefined, borderColor: noteSaved ? C.green : undefined, color: noteSaved ? C.green : undefined }}
             icon={noteSaved ? <Icon name="check" size={14} color={C.green} /> : null}
           >
-            {noteSaved ? "Note Saved!" : "Save Note"}
+            {noteSaved ? "Nota salva" : "Salvar nota"}
           </Button>
         </Card>
 
         <Card>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Recent Lookups</h3>
-            <button onClick={() => onNavigate?.("History")} style={{ background: "transparent", border: "none", color: C.accentLight, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>View all</button>
+            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>Consultas recentes</h3>
+            <button onClick={() => onNavigate?.("History")} style={{ background: "transparent", border: "none", color: C.accentLight, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>Ver todas</button>
           </div>
           {history.length === 0 ? (
-            <div style={{ padding: "20px 0", textAlign: "center", fontSize: 12, color: C.textMuted }}>No lookups yet</div>
+            <div style={{ padding: "20px 0", textAlign: "center", fontSize: 12, color: C.textMuted }}>Nenhuma consulta salva</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column" }}>
               {history.slice(0, 6).map((h, i) => {

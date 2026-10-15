@@ -26,6 +26,7 @@ function sourceStatus(settled) {
   if (settled.status === 'fulfilled') return settled.value?.found === false ? 'no_match' : 'ok';
   const error = settled.reason;
   if (error.code === 'MISSING_KEY') return 'not_configured';
+  if (error.code === 'SOURCE_AUTH') return 'auth_error';
   if (error.response?.status === 401 || error.response?.status === 403) return 'auth_error';
   if (error.response?.status === 404) return 'no_match';
   if (error.response?.status === 429) return 'rate_limited';

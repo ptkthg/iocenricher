@@ -8,13 +8,19 @@ async function checkSource(name, fn) {
     await fn();
     return { name, status: 'online', latency: Date.now() - start };
   } catch (e) {
-    const msg = e.message === 'API key not set' ? 'API key not set' : e.response?.status === 401 ? 'Invalid API key' : e.response?.status === 429 ? 'Rate limited' : e.code === 'ECONNABORTED' ? 'Timeout' : e.message?.slice(0, 60);
-    return { name, status: e.code === 'MISSING_KEY' ? 'not_configured' : e.response?.status === 401 ? 'auth_error' : 'offline', error: msg, latency: Date.now() - start };
+    const status = e.code === 'MISSING_KEY' ? 'not_configured'
+      : e.code === 'SOURCE_AUTH' || [401, 403].includes(e.response?.status) ? 'auth_error'
+      : e.response?.status === 429 ? 'rate_limited' : 'offline';
+    return { name, status, latency: Date.now() - start };
   }
 }
 
-router.get('/health/sources', async (req, res) => {
-  const checks = await Promise.all([
+let cached;
+let pending;
+async function sourceChecks() {
+  if (cached && Date.now() < cached.expires) return cached.value;
+  if (pending) return pending;
+  pending = Promise.all([
     checkSource('virustotal', () => {
       if (!process.env.VIRUSTOTAL_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
       return axios.get('https://www.virustotal.com/api/v3/ip_addresses/8.8.8.8', { headers: { 'x-apikey': process.env.VIRUSTOTAL_API_KEY }, timeout: 5000 });
@@ -27,7 +33,13 @@ router.get('/health/sources', async (req, res) => {
       if (!process.env.URLHAUS_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
       await axios.post('https://urlhaus-api.abuse.ch/v1/host/', new URLSearchParams({ host: '8.8.8.8' }), { headers: { 'Auth-Key': process.env.URLHAUS_API_KEY }, timeout: 5000 });
     }),
-    checkSource('malwarebazaar', () => axios.post('https://mb-api.abuse.ch/api/v1/', new URLSearchParams({ query: 'get_info', hash: 'abc123' }), { timeout: 5000 })),
+    checkSource('malwarebazaar', async () => {
+      if (!process.env.MALWAREBAZAAR_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
+      const { data } = await axios.post('https://mb-api.abuse.ch/api/v1/', new URLSearchParams({ query: 'get_info', hash: '0'.repeat(64) }), { headers: { 'Auth-Key': process.env.MALWAREBAZAAR_API_KEY }, timeout: 5000 });
+      if (!['ok', 'hash_not_found'].includes(data?.query_status)) {
+        throw Object.assign(new Error('MalwareBazaar health failed'), { code: ['no_api_key', 'user_blacklisted'].includes(data?.query_status) ? 'SOURCE_AUTH' : 'SOURCE_RESPONSE' });
+      }
+    }),
     checkSource('abuseipdb', async () => {
       if (!process.env.ABUSEIPDB_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
       await axios.get('https://api.abuseipdb.com/api/v2/check', { headers: { Key: process.env.ABUSEIPDB_API_KEY, Accept: 'application/json' }, params: { ipAddress: '8.8.8.8', maxAgeInDays: 90 }, timeout: 5000 });
@@ -40,8 +52,17 @@ router.get('/health/sources', async (req, res) => {
       if (!process.env.GROQ_API_KEY) throw Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' });
       await axios.get('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` }, timeout: 5000 });
     }),
-  ]);
-  res.json({ sources: checks, checked_at: new Date().toISOString() });
+  ]).then(sources => {
+    const value = { sources, checked_at: new Date().toISOString() };
+    cached = { value, expires: Date.now() + 60_000 };
+    return value;
+  }).finally(() => { pending = null; });
+  return pending;
+}
+
+router.get('/health/sources', async (req, res) => {
+  res.json(await sourceChecks());
 });
 
 module.exports = router;
+module.exports.checkSource = checkSource;

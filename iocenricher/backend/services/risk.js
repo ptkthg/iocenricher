@@ -39,15 +39,17 @@ function calculateRisk(sources = {}, type, sourceStatus = {}) {
   const coverage = { successful: successful.length, total: relevant.length, sources: successful, failed };
   const score = successful.length || points > 0 ? Math.min(Math.round(points), 100) : null;
 
+  const confirmedMalicious = (Number(vt?.malicious) || 0) >= 8 || Boolean(sources.malwarebazaar?.found || sources.urlhaus?.found);
   let level, classification;
   if (score === null) { level = 'INCONCLUSIVO'; classification = 'INCONCLUSIVO'; }
-  else if (score >= 40) { level = score >= 70 ? 'CRÍTICO' : 'ALTO'; classification = 'MALICIOSO'; }
+  else if (score >= 40 && confirmedMalicious) { level = score >= 70 ? 'CRÍTICO' : 'ALTO'; classification = 'MALICIOSO'; }
   else if (score >= 15) { level = 'MÉDIO'; classification = 'SUSPEITO'; }
   else if (successful.length) { level = 'BAIXO'; classification = 'BAIXO_RISCO_OBSERVADO'; }
   else { level = 'INCONCLUSIVO'; classification = 'INCONCLUSIVO'; }
 
   if (!successful.length) factors.push('Nenhuma fonte de reputação respondeu com resultado verificável; não há base para concluir que o IOC é seguro');
   else if (failed.length) factors.push(`Cobertura parcial: ${failed.join(', ')} não concluíram a consulta`);
+  if (score >= 40 && !confirmedMalicious) factors.push('Score elevado por sinais contextuais, sem confirmação de reputação suficiente para classificar como malicioso');
   if (score === 0) factors.push('As fontes disponíveis não apresentaram sinais positivos de ameaça nesta coleta');
 
   const positive = successful.filter(name => name === 'virustotal' ? (Number(vt?.malicious) || 0) > 0 || (Number(vt?.suspicious) || 0) > 0 : name === 'abuseipdb' ? (Number(abuse?.abuse_score) || 0) >= 20 : Boolean(sources[name]?.found));

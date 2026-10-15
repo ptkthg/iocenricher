@@ -10,6 +10,9 @@
 - Validação estrita de IOC, corpo limitado, webhook Slack restrito, limites por endpoint, concorrência e cache de fontes. Limite distribuído opcional via Upstash Redis REST.
 - Análise em lote, histórico e relatórios deixam de apresentar falhas como resultados benignos.
 - A análise individual distingue visualmente erro de consulta de reputação; fallback e relatório HTML não aplicam cor de baixo risco a estados desconhecidos. A linha do tempo deixa de apresentar detecções atuais como se fossem da primeira observação.
+- O health público reduz detalhes de falhas a estados seguros e reutiliza a verificação por 60 segundos por instância.
+- MalwareBazaar usa Auth-Key no servidor, timeout e interpretação explícita da resposta; erro de autenticação ou protocolo não conta como hash ausente. O health usa um hash válido para verificar essa fonte.
+- O motor de risco exige sinal forte de fonte de reputação antes de classificar um IOC como malicioso; score alto apenas por sinais contextuais permanece suspeito.
 
 ### Fase 2 — em andamento
 
@@ -20,6 +23,9 @@
 - Notas, tags e casos no IndexedDB; backup JSON versionado exporta e restaura observações, notas e casos sem substituir registros preexistentes.
 - Retenção manual nas Preferências mostra quantos registros serão excluídos e preserva notas e casos; o fluxo exige confirmação explícita.
 - Filtros do histórico persistem após recarregar a página; valores salvos são validados antes de uso.
+- A análise individual apresenta todos os estados das fontes da coleta, traduz textos operacionais e usa o relatório técnico compartilhado para impressão individual.
+- A abertura do IndexedDB agora tem limite de espera e fallback para a cópia local preservada quando outra aba bloqueia a atualização do banco.
+- O checklist contextual passa a exigir revisão de falsos positivos, impacto e aprovação antes de qualquer contenção; marcações antigas permanecem preservadas sob a chave anterior.
 
 ### Fases 3 a 5 — incrementos parciais
 

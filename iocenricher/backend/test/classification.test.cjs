@@ -9,6 +9,18 @@ test('sem resposta de reputação a análise é inconclusiva', () => {
   assert.equal(result.recommendation, 'INVESTIGAR');
 });
 
+test('sinais contextuais isolados não confirmam IOC malicioso', () => {
+  const risk = calculateRisk({
+    shodan: { total_vulns: 6 },
+    subnet: { found: true, total_malicious: 4 },
+    abuseipdb: { is_tor: true },
+  }, 'ip', { virustotal: 'unavailable', abuseipdb: 'unavailable' });
+  assert.equal(risk.score, 50);
+  assert.equal(risk.classification, 'SUSPEITO');
+  assert.equal(risk.confidence.level, 'BAIXA');
+  assert.match(risk.factors.join(' '), /sem confirmação de reputação/);
+});
+
 test('tipo de IOC e detecção genérica não geram técnica MITRE', () => {
   assert.deepEqual(mapToMitre({ ipinfo: { country: 'BR' } }, 'ip'), []);
   assert.deepEqual(mapToMitre({ virustotal: { malicious: 4 } }, 'hash'), []);

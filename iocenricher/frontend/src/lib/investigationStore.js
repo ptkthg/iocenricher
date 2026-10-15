@@ -26,6 +26,15 @@ function openDatabase() {
   if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB indisponível'));
   if (!opening) opening = new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE, VERSION);
+    let settled = false;
+    const timeout = setTimeout(() => finish(new Error('IndexedDB demorou para abrir')), 4000);
+    function finish(error, database) {
+      if (settled) { database?.close(); return; }
+      settled = true;
+      clearTimeout(timeout);
+      if (error) reject(error);
+      else resolve(database);
+    }
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains('observations')) {
@@ -37,8 +46,9 @@ function openDatabase() {
       if (!database.objectStoreNames.contains('notes')) database.createObjectStore('notes', { keyPath: 'indicator' });
       if (!database.objectStoreNames.contains('cases')) database.createObjectStore('cases', { keyPath: 'id' });
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => finish(null, request.result);
+    request.onerror = () => finish(request.error);
+    request.onblocked = () => finish(new Error('IndexedDB bloqueado por outra aba'));
   }).catch(error => { opening = null; throw error; });
   return opening;
 }

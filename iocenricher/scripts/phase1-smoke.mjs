@@ -18,7 +18,10 @@ try {
     initial = await evaluate(`({input:!!document.querySelector('input[placeholder="malicious-example.com"]'),login:document.body.textContent.includes('Criar conta'),title:document.body.textContent.includes('Análise individual de IOC')})`);
     if (initial.input) break;
   }
-  if (!initial.input || initial.login || !initial.title) throw new Error(`Entrada pública falhou: ${JSON.stringify(initial)}`);
+  if (!initial.input || initial.login || !initial.title) {
+    const diagnostic = await evaluate(`({url:location.href,ready:document.readyState,body:document.body.textContent.slice(0,500),html:document.body.innerHTML.slice(0,500)})`);
+    throw new Error(`Entrada pública falhou: ${JSON.stringify({ initial, diagnostic })}`);
+  }
   const routes = ['/overview', '/historico', '/preferencias'];
   for (const route of routes) {
     await send('Page.navigate', { url: `http://127.0.0.1:5174${route}` });
@@ -36,16 +39,36 @@ try {
   if (!errorShown) throw new Error('Erro de IOC inválido não apareceu na interface');
   await evaluate(`(()=>{const input=document.querySelector('input[placeholder="malicious-example.com"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'00000000000000000000000000000000');input.dispatchEvent(new Event('input',{bubbles:true}))})()`);
   await pause(100);
+  const attemptStartedAt = Date.now();
   await evaluate(`[...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='Analisar')?.click()`);
   let result;
   for (let i = 0; i < 40; i++) {
     await pause(500);
     result = await evaluate(`JSON.parse(localStorage.getItem('iocenricher_history')||'[]')[0] || null`);
-    if (result?.indicator === '00000000000000000000000000000000') break;
+    if (result?.indicator === '00000000000000000000000000000000' && result?._saved_at >= attemptStartedAt) break;
   }
-  if (result?.risk?.score !== null || result?.risk?.level !== 'INCONCLUSIVO' || result?.query_status !== 'error') throw new Error(`Falha de fonte classificada incorretamente: ${JSON.stringify(result?.risk)}`);
+  if (!result || result._saved_at < attemptStartedAt || result?.risk?.score !== null || result?.risk?.level !== 'INCONCLUSIVO' || result?.query_status !== 'error') {
+    const diagnostic = await evaluate(`({button:[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Analis'))?.textContent,error:document.querySelector('[role="alert"]')?.textContent,history:JSON.parse(localStorage.getItem('iocenricher_history')||'[]').slice(0,2).map(item=>({timestamp:item.timestamp,saved:item._saved_at}))})`);
+    throw new Error(`Falha de fonte classificada incorretamente: ${JSON.stringify({ started: attemptStartedAt, risk: result?.risk, diagnostic })}`);
+  }
   const queryErrorVerdict = await evaluate(`document.querySelector('.verdict-banner')?.textContent.includes('Erro de consulta')`);
   if (!queryErrorVerdict) throw new Error('Falha de fonte não foi identificada como erro de consulta na análise individual');
+  const sourceStates = await evaluate(`({shown:document.body.textContent.includes('Estado das fontes nesta coleta'),rows:[...document.querySelectorAll('section[aria-label="Estado das fontes desta coleta"] tbody tr')].length})`);
+  if (!sourceStates.shown || sourceStates.rows < 2) throw new Error(`Estados das fontes não foram exibidos: ${JSON.stringify(sourceStates)}`);
+  let completed = false;
+  for (let i = 0; i < 50; i++) {
+    completed = await evaluate(`!![...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Analisar'&&!button.disabled)`);
+    if (completed) break;
+    await pause(100);
+  }
+  if (!completed) {
+    const diagnostic = await evaluate(`({buttons:[...document.querySelectorAll('button')].filter(button=>button.textContent.includes('Analis')).map(button=>({text:button.textContent,disabled:button.disabled})),input:document.querySelector('input[placeholder="malicious-example.com"]')?.value,body:document.body.textContent.slice(0,400)})`);
+    throw new Error(`A análise exibiu resultado, mas permaneceu em carregamento: ${JSON.stringify(diagnostic)}`);
+  }
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  await pause(150);
+  const resultScreenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  await writeFile('D:/iocenricher/source-status-qa.png', Buffer.from(resultScreenshot.data, 'base64'));
   await send('Page.navigate', { url: 'http://127.0.0.1:5174/historico' });
   await pause(650);
   await evaluate(`[...document.querySelectorAll('tr')].find(row=>row.textContent.includes('00000000000000000000000000000000'))?.querySelector('button')?.click()`);
