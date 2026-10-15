@@ -67,7 +67,7 @@ function Btn({ children, onClick, variant = "primary", disabled, loading, style 
     transition: "all 0.2s", opacity: disabled ? 0.6 : 1, ...style
   };
   const styles = {
-    primary: { background: `linear-gradient(135deg, ${C.accent}, ${C.accentLight})`, color: "#fff", boxShadow: disabled ? "none" : `0 4px 16px ${C.accent}44` },
+    primary: { background: C.green, color: "#052016", border: `1px solid ${C.green}` },
     secondary: { background: C.bgInput, color: C.textMuted, border: `1px solid ${C.border}` },
     ghost: { background: "transparent", color: C.textMuted, border: `1px solid ${C.border}` },
   };
@@ -104,13 +104,8 @@ function SignIn({ onLogin, onSwitch }) {
       // Check stored accounts
       const match = accounts.find(a => a.email.toLowerCase() === email.toLowerCase() && a.passwordHash === hashed);
 
-      // Legacy fallback: ptkamp1@gmail.com with any 4+ char password
-      const isLegacy = email.toLowerCase() === "ptkamp1@gmail.com" && password.length >= 4 && !match;
-
-      if (match || isLegacy) {
-        const user = match
-          ? { email: match.email, name: match.name, role: match.role || "Analista SOC" }
-          : { email, name: "Patrick Thiago", role: "Analista SOC" };
+      if (match) {
+        const user = { email: match.email, name: match.name, role: match.role || "Analista SOC" };
         localStorage.setItem(USER_KEY, JSON.stringify(user));
         localStorage.setItem(SESSION_KEY, Date.now().toString());
         onLogin(user);
@@ -228,8 +223,8 @@ export default function Login({ onLogin }) {
     onLogin(guest);
   }
 
-  const titles = { login: "Welcome back", register: "Create account" };
-  const subtitles = { login: "Sign in to your SOC workspace", register: "Join the Blue Team platform" };
+  const titles = { login: "Acesso do analista", register: "Criar acesso local" };
+  const subtitles = { login: "Entre no espaço de investigação", register: "Conta armazenada neste navegador" };
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", background: C.bg, fontFamily: FONT }}>
@@ -244,10 +239,10 @@ export default function Login({ onLogin }) {
       `}</style>
 
       {/* Left panel — branding (hidden on mobile) */}
-      <div className="login-branding" style={{ flex: 1, flexDirection: "column", justifyContent: "center", padding: "60px 80px", background: `linear-gradient(160deg, ${C.bgCard} 0%, ${C.bg} 100%)`, borderRight: `1px solid ${C.border}` }}>
+      <div className="login-branding" style={{ flex: 1, flexDirection: "column", justifyContent: "center", padding: "60px 80px", background: C.bgCard, borderRight: `1px solid ${C.border}` }}>
         <div style={{ maxWidth: 440 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 48 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}, ${C.accentLight})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 42, height: 42, borderRadius: 5, background: C.green, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z" />
                 <circle cx="12" cy="12" r="3" fill="#fff" />
@@ -261,18 +256,18 @@ export default function Login({ onLogin }) {
           </div>
 
           <h2 style={{ fontSize: 32, fontWeight: 700, color: C.text, margin: "0 0 16px", lineHeight: 1.2 }}>
-            Analyze threats.<br />
-            <span style={{ background: `linear-gradient(135deg, ${C.accent}, ${C.accentLight})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Protect your network.</span>
+            Console de investigação.<br />
+            <span style={{ color: C.green }}>IOC Enricher</span>
           </h2>
           <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.7, margin: "0 0 40px" }}>
-            Enrich indicators of compromise with data from VirusTotal, IPinfo, URLhaus, MalwareBazaar and more — with AI-powered analysis and MITRE ATT&CK mapping.
+            Consulte IOCs e revise as respostas das fontes OSINT. Histórico e contas são armazenados localmente neste navegador.
           </p>
 
           {[
-            { icon: "🔍", text: "Real-time IOC enrichment from 4+ OSINT sources" },
-            { icon: "🧠", text: "AI analysis powered by Groq Llama 3.3 70B" },
-            { icon: "🗺️", text: "MITRE ATT&CK technique mapping" },
-            { icon: "📊", text: "Visual investigation graph" },
+            { icon: "01", text: "Consultar IP, domínio, URL ou hash" },
+            { icon: "02", text: "Revisar os dados retornados pelas fontes" },
+            { icon: "03", text: "Explorar técnicas MITRE quando houver evidências" },
+            { icon: "04", text: "Registrar notas e exportar a análise" },
           ].map((f, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
               <span style={{ fontSize: 18 }}>{f.icon}</span>
@@ -284,7 +279,7 @@ export default function Login({ onLogin }) {
 
       {/* Right panel — form */}
       <div className="login-form" style={{ display: "flex", flexDirection: "column", justifyContent: "center", overflowY: "auto" }}>
-        <Logo />
+        <div style={{textAlign:'center',color:C.green,fontSize:24,marginBottom:18}}>❯_</div>
 
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: "0 0 6px", textAlign: "center" }}>
           {titles[mode] || "Welcome back"}
@@ -323,7 +318,7 @@ export default function Login({ onLogin }) {
           Continue as Guest
         </Btn>
         <p style={{ fontSize: 11, color: C.textDim, textAlign: "center", margin: "10px 0 0", lineHeight: 1.5 }}>
-          Guests can analyze IOCs but data won't be saved between sessions.
+          O histórico é armazenado neste navegador, inclusive para convidados. Não há sincronização entre dispositivos.
         </p>
 
         <div style={{ marginTop: 32, paddingTop: 20, borderTop: `1px solid ${C.border}`, textAlign: "center" }}>

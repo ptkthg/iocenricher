@@ -68,7 +68,7 @@ async function buildGraph(indicator) {
   const sources = {};
 
   const mainId = uid(type, indicator);
-  addNode(nodes, mainId, indicator, type, { isMain: true, score: 0, risk: 'BAIXO' });
+  addNode(nodes, mainId, indicator, type, { isMain: true, score: 0, risk: 'INCONCLUSIVO' });
 
   try {
     if (type === 'ip') {

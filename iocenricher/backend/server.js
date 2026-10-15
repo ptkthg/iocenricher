@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const axios = require('axios');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const enrichRoutes = require('./routes/enrich');
@@ -11,6 +12,7 @@ const notifyRoutes = require('./routes/notify');
 const phishingRoutes = require('./routes/phishing');
 
 const app = express();
+axios.defaults.timeout = 12000;
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());

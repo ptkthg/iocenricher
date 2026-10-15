@@ -1,13 +1,13 @@
 import { C, FONT } from "../lib/theme";
 
 const cardBase = {
-  background: "linear-gradient(145deg, #0c1e36 0%, #081628 100%)",
+  background: C.bgCard,
   border: `1px solid ${C.border}`,
-  borderRadius: 16,
-  padding: 20,
+  borderRadius: 5,
+  padding: 14,
   position: "relative",
   overflow: "hidden",
-  boxShadow: "0 4px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.03)",
+  boxShadow: "none",
   transition: "border-color 0.2s ease, box-shadow 0.2s ease",
 };
 
@@ -18,7 +18,7 @@ export function Card({ children, style = {}, ...props }) {
       onMouseEnter={e => {
         if (props.onClick || style.cursor === "pointer") {
           e.currentTarget.style.borderColor = C.borderAccent;
-          e.currentTarget.style.boxShadow = "0 8px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(96,165,250,0.1), inset 0 1px 0 rgba(255,255,255,0.05)";
+          e.currentTarget.style.boxShadow = "none";
         }
       }}
       onMouseLeave={e => {
@@ -27,11 +27,6 @@ export function Card({ children, style = {}, ...props }) {
       }}
       {...props}
     >
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: 1,
-        background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%)",
-        pointerEvents: "none",
-      }} />
       {children}
     </div>
   );
@@ -60,11 +55,11 @@ export function Badge({ children, color = C.accent, bg, style = {} }) {
 export function Button({ children, variant = "primary", icon, onClick, disabled, style = {}, ...props }) {
   const variants = {
     primary: {
-      bg: `linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)`,
-      color: "#fff",
-      border: "rgba(59,130,246,0.5)",
-      shadow: "0 4px 14px rgba(59,130,246,0.3)",
-      hoverShadow: "0 6px 24px rgba(59,130,246,0.5)",
+      bg: C.green,
+      color: "#052016",
+      border: C.green,
+      shadow: "none",
+      hoverShadow: "none",
     },
     secondary: {
       bg: "rgba(255,255,255,0.04)",
@@ -106,7 +101,7 @@ export function Button({ children, variant = "primary", icon, onClick, disabled,
         background: disabled ? `${C.border}80` : v.bg,
         color: disabled ? C.textDim : v.color,
         border: `1px solid ${disabled ? C.border : v.border}`,
-        borderRadius: 10,
+        borderRadius: 4,
         fontSize: 13,
         fontWeight: 600,
         fontFamily: FONT,
@@ -123,7 +118,7 @@ export function Button({ children, variant = "primary", icon, onClick, disabled,
       }}
       onMouseEnter={e => {
         if (!disabled) {
-          e.currentTarget.style.transform = "translateY(-1px)";
+          e.currentTarget.style.transform = "none";
           e.currentTarget.style.boxShadow = v.hoverShadow || v.shadow;
           if (v.hoverBorder) e.currentTarget.style.borderColor = v.hoverBorder;
         }
@@ -154,7 +149,7 @@ export function Input({ value, onChange, placeholder, type = "text", style = {},
         padding: "10px 14px",
         background: C.bgInput,
         border: `1px solid ${C.border}`,
-        borderRadius: 10,
+        borderRadius: 4,
         color: C.text,
         fontSize: 13,
         fontFamily: FONT,
@@ -184,7 +179,7 @@ export function Select({ value, onChange, options, style = {}, ...props }) {
         padding: "10px 36px 10px 14px",
         background: C.bgInput,
         border: `1px solid ${C.border}`,
-        borderRadius: 10,
+        borderRadius: 4,
         color: C.text,
         fontSize: 13,
         fontFamily: FONT,
@@ -252,7 +247,7 @@ export function StatBox({ label, value, change, changeType, icon, iconColor, ico
 
 export function PageHeader({ title, subtitle, actions }) {
   return (
-    <div className="page-header-actions" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28, gap: 12 }}>
+    <div className="page-header-actions" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, gap: 12 }}>
       <div style={{ minWidth: 0 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, marginBottom: 5, letterSpacing: "-0.02em" }}>{title}</h1>
         {subtitle && <p style={{ fontSize: 13, color: C.textMuted, margin: 0, lineHeight: 1.5 }}>{subtitle}</p>}

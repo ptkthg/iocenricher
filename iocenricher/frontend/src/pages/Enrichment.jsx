@@ -3,6 +3,7 @@ import { C, FONT, RISK_CFG, timeAgo, fmtDate, detectType } from "../lib/theme";
 import { enrichIndicator, getHistory, addToHistory } from "../lib/api";
 import Icon from "../components/Icon";
 import { Card, Badge, Button, Input, PageHeader } from "../components/UI";
+import RelationshipPreview from "../components/RelationshipPreview";
 
 function ScoreGauge({ score, level }) {
   const cfg = RISK_CFG[level] || RISK_CFG.BAIXO;
@@ -787,7 +788,11 @@ function VerdictBanner({ result, risk }) {
     result?.sources?.subnet?.found,
   ].filter(Boolean).length;
 
-  if (risk.score >= 70 || malSources >= 2) {
+  if (risk.level === 'INCONCLUSIVO') {
+    verdict = "INCONCLUSIVE"; verdictLabel = "Inconclusive"; confidence = 0;
+    reason = "Fontes de reputação indisponíveis ou sem resposta. Não é possível concluir que o IOC é benigno.";
+    color = C.textMuted; bg = C.bgInput; icon = "info";
+  } else if (risk.score >= 70 || malSources >= 2) {
     verdict = "MALICIOUS";
     verdictLabel = "Malicious";
     confidence = Math.min(95, 60 + malSources * 10 + Math.floor(risk.score / 10));
@@ -811,8 +816,8 @@ function VerdictBanner({ result, risk }) {
     verdictLabel = "Clean";
     confidence = Math.min(90, 70 + (10 - risk.score) * 2);
     reason = vt?.harmless > 0
-      ? `Marked clean by ${vt.harmless} sources. No malicious activity detected`
-      : "No malicious activity found across all OSINT sources";
+      ? `${vt.harmless} classificações inofensivas retornadas pelo VirusTotal`
+      : "As fontes consultadas não forneceram sinais suficientes de ameaça";
     color = C.green; bg = "rgba(16,185,129,0.08)"; icon = "check";
   } else {
     verdict = "INCONCLUSIVE";
@@ -832,7 +837,7 @@ function VerdictBanner({ result, risk }) {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0, minWidth: 130, padding: "12px 20px", background: `${color}15`, borderRadius: 12, border: `1px solid ${color}33` }}>
         <div style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: 1.5 }}>Verdict</div>
         <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>{verdictLabel}</div>
-        <div style={{ fontSize: 12, color, opacity: 0.8 }}>{confidence}% confidence</div>
+        <div style={{ fontSize: 12, color, opacity: 0.8 }}>Score {risk.score}/100</div>
       </div>
 
       {/* Divider */}
@@ -843,7 +848,7 @@ function VerdictBanner({ result, risk }) {
         <div style={{ fontSize: 15, fontWeight: 600, color, marginBottom: 6 }}>
           {verdict === "MALICIOUS" ? "⚠ Threat Confirmed" :
            verdict === "SUSPICIOUS" ? "⚡ Requires Investigation" :
-           verdict === "CLEAN" ? "✓ No Threat Detected" : "? Needs Manual Review"}
+           verdict === "CLEAN" ? "✓ Baixo risco nas fontes disponíveis" : "? Revisão manual necessária"}
         </div>
         <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6, marginBottom: 8 }}>{reason}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -855,15 +860,15 @@ function VerdictBanner({ result, risk }) {
         </div>
       </div>
 
-      {/* Confidence arc */}
+      {/* Score calculated by the backend */}
       <div style={{ flexShrink: 0 }}>
         <svg width="80" height="80" viewBox="0 0 80 80">
           <circle cx="40" cy="40" r="32" fill="none" stroke={`${color}22`} strokeWidth="8" />
           <circle cx="40" cy="40" r="32" fill="none" stroke={color} strokeWidth="8"
-            strokeDasharray={`${(confidence / 100) * 201} 201`}
+            strokeDasharray={`${(risk.score / 100) * 201} 201`}
             strokeLinecap="round"
             transform="rotate(-90 40 40)" />
-          <text x="40" y="44" textAnchor="middle" fill={color} fontSize="16" fontWeight="700" fontFamily={FONT}>{confidence}%</text>
+          <text x="40" y="44" textAnchor="middle" fill={color} fontSize="16" fontWeight="700" fontFamily={FONT}>{risk.score}</text>
         </svg>
       </div>
     </div>
@@ -1093,8 +1098,6 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
   const [error, setError] = useState(null);
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState([]);
-  const [visibility, setVisibility] = useState("Private");
-  const [visibilityOpen, setVisibilityOpen] = useState(false);
   const [addingTag, setAddingTag] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
@@ -1109,16 +1112,15 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
         const saved = JSON.parse(localStorage.getItem(`ioc_note_${currentResult.indicator}`) || "{}");
         setNotes(saved.notes || "");
         setTags(saved.tags || []);
-        setVisibility(saved.visibility || "Private");
       } catch {
-        setNotes(""); setTags([]); setVisibility("Private");
+        setNotes(""); setTags([]);
       }
     }
   }, [currentResult?.indicator]);
 
   function saveNote() {
     if (!currentResult?.indicator) return;
-    const data = { notes, tags, visibility, savedAt: new Date().toISOString() };
+    const data = { notes, tags, savedAt: new Date().toISOString() };
     localStorage.setItem(`ioc_note_${currentResult.indicator}`, JSON.stringify(data));
     setNoteSaved(true);
     setTimeout(() => setNoteSaved(false), 2000);
@@ -1153,6 +1155,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
     if (!input.trim() || loading) return;
     setLoading(true);
     setError(null);
+    setCurrentResult(null);
     setThreatMatch(null);
     setChosenAction(null);
     try {
@@ -1217,11 +1220,12 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
   function exportPDF() {
     if (!currentResult) return;
     const r = currentResult;
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>IOC Report — ${r.indicator}</title>
+  <title>IOC Report — ${esc(r.indicator)}</title>
   <style>
     body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; margin: 0; padding: 32px; font-size: 13px; }
     .header { border-bottom: 3px solid #3b82f6; padding-bottom: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
@@ -1250,8 +1254,8 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
       <div style="font-size:12px;color:#64748b;margin-top:4px">Blue Team Intelligence Platform</div>
     </div>
     <div style="text-align:right">
-      <div style="font-size:18px;font-weight:700;font-family:monospace">${r.indicator}</div>
-      <span class="badge badge-${r.risk?.level === 'CRÍTICO' ? 'critical' : r.risk?.level === 'ALTO' ? 'high' : r.risk?.level === 'MÉDIO' ? 'medium' : 'low'}">${r.risk?.level || 'BAIXO'} · Score ${r.risk?.score || 0}/100</span>
+      <div style="font-size:18px;font-weight:700;font-family:monospace">${esc(r.indicator)}</div>
+      <span class="badge badge-${r.risk?.level === 'CRÍTICO' ? 'critical' : r.risk?.level === 'ALTO' ? 'high' : r.risk?.level === 'MÉDIO' ? 'medium' : 'low'}">${esc(r.risk?.level || 'INCONCLUSIVO')} · Score ${esc(r.risk?.score ?? 0)}/100</span>
       <div style="font-size:11px;color:#94a3b8;margin-top:4px">Generated: ${new Date().toLocaleString('pt-BR')}</div>
     </div>
   </div>
@@ -1259,29 +1263,29 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
   <div class="section">
     <div class="section-title">Indicator Details</div>
     <div class="grid">
-      <div class="field"><div class="field-label">Type</div><div class="field-value">${r.type?.toUpperCase()}</div></div>
-      <div class="field"><div class="field-label">Recommendation</div><div class="field-value">${r.recommendation || '—'}</div></div>
-      ${r.sources?.ipinfo?.country ? `<div class="field"><div class="field-label">Country</div><div class="field-value">${r.sources.ipinfo.country} · ${r.sources.ipinfo.city || ''}</div></div>` : ''}
-      ${r.sources?.ipinfo?.org ? `<div class="field"><div class="field-label">Organization</div><div class="field-value">${r.sources.ipinfo.org}</div></div>` : ''}
-      ${r.sources?.abuseipdb ? `<div class="field"><div class="field-label">Abuse Score</div><div class="field-value">${r.sources.abuseipdb.abuse_score}% (${r.sources.abuseipdb.total_reports} reports)</div></div>` : ''}
-      ${r.sources?.shodan ? `<div class="field"><div class="field-label">Open Ports</div><div class="field-value">${r.sources.shodan.ports?.slice(0,8).join(', ') || '—'}</div></div>` : ''}
+      <div class="field"><div class="field-label">Type</div><div class="field-value">${esc(r.type?.toUpperCase())}</div></div>
+      <div class="field"><div class="field-label">Recommendation</div><div class="field-value">${esc(r.recommendation || '—')}</div></div>
+      ${r.sources?.ipinfo?.country ? `<div class="field"><div class="field-label">Country</div><div class="field-value">${esc(r.sources.ipinfo.country)} · ${esc(r.sources.ipinfo.city)}</div></div>` : ''}
+      ${r.sources?.ipinfo?.org ? `<div class="field"><div class="field-label">Organization</div><div class="field-value">${esc(r.sources.ipinfo.org)}</div></div>` : ''}
+      ${r.sources?.abuseipdb ? `<div class="field"><div class="field-label">Abuse Score</div><div class="field-value">${esc(r.sources.abuseipdb.abuse_score)}% (${esc(r.sources.abuseipdb.total_reports)} reports)</div></div>` : ''}
+      ${r.sources?.shodan ? `<div class="field"><div class="field-label">Open Ports</div><div class="field-value">${esc(r.sources.shodan.ports?.slice(0,8).join(', ') || '—')}</div></div>` : ''}
     </div>
   </div>
 
   ${r.risk?.factors?.length > 0 ? `<div class="section">
     <div class="section-title">Risk Factors (${r.risk.factors.length})</div>
-    ${r.risk.factors.map(f => `<div class="factor">${f}</div>`).join('')}
+    ${r.risk.factors.map(f => `<div class="factor">${esc(f)}</div>`).join('')}
   </div>` : ''}
 
   ${r.mitre?.length > 0 ? `<div class="section">
     <div class="section-title">MITRE ATT&CK Techniques</div>
-    ${r.mitre.map(t => `<span class="mitre-tag">${t.id} — ${t.name}</span>`).join('')}
+    ${r.mitre.map(t => `<span class="mitre-tag">${esc(t.id)} — ${esc(t.name)}</span>`).join('')}
   </div>` : ''}
 
   ${r.ai_analysis?.summary ? `<div class="section">
     <div class="section-title">AI Analysis</div>
-    <p style="line-height:1.7;color:#334155">${r.ai_analysis.summary}</p>
-    ${r.ai_analysis.recommendations?.length > 0 ? `<div style="margin-top:12px"><strong>Recommended Actions:</strong><ol style="margin:8px 0;padding-left:20px;color:#334155">${r.ai_analysis.recommendations.map(a => `<li style="margin-bottom:4px">${a}</li>`).join('')}</ol></div>` : ''}
+    <p style="line-height:1.7;color:#334155">${esc(r.ai_analysis.summary)}</p>
+    ${r.ai_analysis.recommendations?.length > 0 ? `<div style="margin-top:12px"><strong>Recommended Actions:</strong><ol style="margin:8px 0;padding-left:20px;color:#334155">${r.ai_analysis.recommendations.map(a => `<li style="margin-bottom:4px">${esc(a)}</li>`).join('')}</ol></div>` : ''}
   </div>` : ''}
 
   <div class="footer">IOC Enricher — Blue Team Intelligence Platform · ${new Date().getFullYear()}</div>
@@ -1394,26 +1398,27 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
       }
       return null;
     });
-    // Fill nulls with interpolated values
-    const filled = [...days];
-    for (let i = 0; i < filled.length; i++) {
-      if (filled[i] === null) filled[i] = risk.score + (Math.random() * 8 - 4);
-    }
-    filled[filled.length - 1] = risk.score; // Last point is always current
-    return filled.map(v => Math.min(100, Math.max(0, Math.round(v))));
+    return days.filter(v => v !== null);
   }, [result?.indicator, risk?.score, history.length]);
 
   const showResult = !!result;
+  const sourceIssues = Object.entries(result?.source_status || {}).filter(([, status]) =>
+    ['not_configured', 'auth_error', 'rate_limited', 'unavailable'].includes(status)
+  );
+  const sourceNames = { virustotal: 'VirusTotal', ipinfo: 'IPinfo', abuseipdb: 'AbuseIPDB', shodan: 'Shodan', urlhaus: 'URLhaus', malwarebazaar: 'MalwareBazaar', groq: 'Groq (IA)', passivedns: 'DNS passivo', whois: 'WHOIS', ssl: 'Certificado TLS', subnet: 'Subnet' };
+  const sourceReasons = { not_configured: 'chave não configurada', auth_error: 'chave inválida ou acesso negado', rate_limited: 'limite de consultas atingido', unavailable: 'serviço ou rede indisponível' };
 
   return (
-    <div className="main-with-sidebar" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20, alignItems: "start" }}>
+    <><h1 className="page-title">Análise individual de IOC</h1><p className="page-subtitle">Consulta OSINT, classificação, técnicas e contexto do indicador.</p>
+    {showResult && <nav className="toolbar" style={{borderBottom:`1px solid ${C.border}`,paddingBottom:8,marginBottom:12}} aria-label="Seções da análise">{[['overview','Visão geral'],['sources','Fontes'],['mitre','MITRE ATT&CK'],['relationships','Relacionamentos'],['ai','Análise por IA']].map(([id,label])=><a key={id} className="btn" href={`#${id}`}>{label}</a>)}</nav>}
+    <div className="main-with-sidebar" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 12, alignItems: "start" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
 
         {/* Form */}
         <Card>
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: C.text, margin: 0, marginBottom: 6 }}>Enrich an Indicator</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0, marginBottom: 6 }}>Consultar indicador</h2>
           <p style={{ fontSize: 13, color: C.textMuted, margin: 0, marginBottom: 20 }}>
-            Enter an indicator value to gather context and reputation from multiple open-source sources.
+            Informe um IP, domínio, URL ou hash para consultar as fontes disponíveis.
           </p>
 
           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -1436,7 +1441,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
               icon={<Icon name="target" size={16} color="#fff" />}
               style={{ padding: "0 22px" }}
             >
-              {loading ? "Analyzing..." : "Analyze"}
+              {loading ? "Analisando..." : "Analisar"}
             </Button>
           </div>
 
@@ -1465,9 +1470,18 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
           )}
         </Card>
 
+        {showResult && sourceIssues.length > 0 && (
+          <div role="status" style={{ padding: '12px 16px', border: `1px solid ${C.yellow}66`, background: C.yellowBg, color: C.text, fontSize: 12, lineHeight: 1.6 }}>
+            <strong style={{ color: C.yellow }}>Análise parcial.</strong> Algumas fontes não responderam; a classificação pode estar incompleta.
+            <div style={{ marginTop: 5, color: C.textMuted }}>
+              {sourceIssues.map(([name, status]) => `${sourceNames[name] || name}: ${sourceReasons[status]}`).join(' · ')}
+            </div>
+          </div>
+        )}
+
         {/* ── VERDICT BANNER ── */}
         {showResult && (
-          <div className="fade-in">
+          <div id="overview" className="fade-in">
             <VerdictBanner result={result} risk={risk} />
           </div>
         )}
@@ -1547,7 +1561,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
                 </span>
               </div>
               <span style={{ fontSize: 12, color: C.accentLight }}>
-                {result?.type === "ip" ? "Public Address" : `Registered ${result?.type}`}
+                {result?.type === "ip" ? "Endereço IP" : `Indicador ${result?.type}`}
               </span>
             </Card>
 
@@ -1607,28 +1621,17 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
             <Card>
               <div style={{ marginBottom: 8 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>
-                  Reputation Trend <span style={{ color: C.textMuted, fontSize: 12, fontWeight: 400 }}>(30 days)</span>
+                  Histórico de score <span style={{ color: C.textMuted, fontSize: 12, fontWeight: 400 }}>(consultas salvas)</span>
                 </h3>
               </div>
-              <Sparkline data={trendData} color={cfg?.color || C.green} />
-              {ipi?.country && (
-                <div style={{ marginTop: 18 }}>
-                  <h4 style={{ fontSize: 13, fontWeight: 500, color: C.text, margin: 0, marginBottom: 12 }}>
-                    Geo Distribution <span style={{ color: C.textMuted, fontSize: 11, fontWeight: 400 }}>(Resolved IPs)</span>
-                  </h4>
-                  <GeoBar label={`${countryFlag(ipi.country)} ${ipi.country}`} pct={80} />
-                  <GeoBar label="🇩🇪 Germany" pct={10} />
-                  <GeoBar label="🇸🇬 Singapore" pct={5} />
-                  <GeoBar label="🇳🇱 Netherlands" pct={5} />
-                </div>
-              )}
+              {trendData.length > 1 ? <Sparkline data={trendData} color={cfg?.color || C.green} /> : <p style={{ color: C.textMuted }}>Não há dados históricos suficientes para uma tendência.</p>}
             </Card>
           </div>
         )}
 
         {/* Sources + Actions */}
         {showResult && sourcesList.length > 0 && (
-          <div className="fade-in detail-grid" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16 }}>
+          <div id="sources" className="fade-in detail-grid" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16 }}>
             <Card>
               <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, marginBottom: 16, color: C.text }}>Source / Reputation</h3>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -1636,7 +1639,6 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
                   <tr style={{ borderBottom: `1px solid ${C.border}` }}>
                     <th style={{ textAlign: "left", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>SOURCE</th>
                     <th style={{ textAlign: "left", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>RESULT</th>
-                    <th style={{ textAlign: "left", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>CONFIDENCE</th>
                     <th style={{ textAlign: "right", padding: "8px 0", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>LAST SEEN</th>
                   </tr>
                 </thead>
@@ -1652,7 +1654,6 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
                       <td style={{ padding: "12px 0" }}>
                         <Badge color={s.resultColor} bg={`${s.resultColor}11`}>{s.result}</Badge>
                       </td>
-                      <td style={{ padding: "12px 0" }}><Confidence level={s.conf} /></td>
                       <td style={{ padding: "12px 0", textAlign: "right", color: C.textMuted }}>{s.time}</td>
                     </tr>
                   ))}
@@ -1699,16 +1700,18 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
             </Card>
           </div>
         )}
+        {showResult && sourcesList.length === 0 && <Card id="sources"><h3 style={{marginTop:0}}>Fontes OSINT</h3><p style={{color:C.textMuted}}>Nenhum resultado de reputação disponível para este IOC. Consulte novamente quando as integrações estiverem acessíveis.</p></Card>}
 
         {/* MITRE ATT&CK */}
         {showResult && result.mitre?.length > 0 && (
-          <div className="fade-in"><MitreCard techniques={result.mitre} /></div>
+          <div id="mitre" className="fade-in"><MitreCard techniques={result.mitre} /></div>
         )}
+        {showResult && !result.mitre?.length && <Card id="mitre"><h3 style={{marginTop:0}}>MITRE ATT&CK</h3><p style={{color:C.textMuted}}>Nenhuma técnica foi associada sem sinais específicos das fontes.</p></Card>}
 
         {/* ── CONTEXT TIMELINE ── */}
         {showResult && (
           <div className="fade-in">
-            <ContextTimeline result={result} />
+            <div id="relationships"><RelationshipPreview indicator={result.indicator} onOpen={() => onNavigate?.("Graph",result.indicator)} /><div style={{marginTop:12}}><ContextTimeline result={result} /></div></div>
           </div>
         )}
 
@@ -1759,7 +1762,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
         {/* AI Analysis */}
         {showResult && (
           <div className="fade-in">
-            <AiAnalysisCard analysis={result.ai_analysis} loading={loading} />
+            <div id="ai"><AiAnalysisCard analysis={result.ai_analysis} loading={loading} /></div>
           </div>
         )}
 
@@ -1844,38 +1847,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
             </div>
           </div>
 
-          {/* Visibility */}
-          <div style={{ marginTop: 14, position: "relative" }}>
-            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>Visibility</div>
-            <button
-              onClick={() => setVisibilityOpen(o => !o)}
-              style={{ width: "100%", padding: "9px 12px", background: C.bgInput, border: `1px solid ${visibilityOpen ? C.accent : C.border}`, borderRadius: 8, color: C.text, fontSize: 13, textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", fontFamily: FONT }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Icon name={visibility === "Private" ? "lock" : visibility === "Team" ? "users" : "globe"} size={14} color={C.textMuted} />
-                {visibility === "Private" ? "Private (Only me)" : visibility === "Team" ? "Team (Shared)" : "Public"}
-              </span>
-              <Icon name="arrowDown" size={12} color={C.textDim} />
-            </button>
-            {visibilityOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.3)", zIndex: 50, overflow: "hidden" }}>
-                {[
-                  { key: "Private", icon: "lock", label: "Private (Only me)" },
-                  { key: "Team", icon: "users", label: "Team (Shared)" },
-                  { key: "Public", icon: "globe", label: "Public" },
-                ].map(opt => (
-                  <button key={opt.key} onClick={() => { setVisibility(opt.key); setVisibilityOpen(false); }}
-                    style={{ width: "100%", padding: "10px 14px", background: visibility === opt.key ? "rgba(59,130,246,0.1)" : "transparent", border: "none", color: visibility === opt.key ? C.accentLight : C.text, fontSize: 13, fontFamily: FONT, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
-                    onMouseEnter={e => { if (visibility !== opt.key) e.currentTarget.style.background = C.bgCardHover; }}
-                    onMouseLeave={e => { if (visibility !== opt.key) e.currentTarget.style.background = "transparent"; }}
-                  >
-                    <Icon name={opt.icon} size={14} color={visibility === opt.key ? C.accentLight : C.textMuted} />
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <p style={{fontSize:11,color:C.textDim}}>Notas e tags ficam somente neste navegador.</p>
 
           <Button
             onClick={saveNote}
@@ -1930,6 +1902,6 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
           )}
         </Card>
       </div>
-    </div>
+    </div></>
   );
 }

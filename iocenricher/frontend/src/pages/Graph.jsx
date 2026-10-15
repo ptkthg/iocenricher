@@ -170,7 +170,7 @@ function useForceSimulation(nodes, edges, width, height) {
 }
 
 // ─── Main Graph component ─────────────────────────────────────────────────────
-export default function Graph() {
+export default function Graph({ initialIndicator, onIndicatorConsumed }) {
   const [indicator, setIndicator] = useState("");
   const [loading, setLoading] = useState(false);
   const [graphData, setGraphData] = useState(null);
@@ -191,8 +191,16 @@ export default function Graph() {
 
   const { positions, pinNode, unpinNode } = useForceSimulation(nodes, edges, W, H);
 
-  async function handleInvestigate() {
-    if (!indicator.trim() || loading) return;
+  useEffect(() => {
+    if (initialIndicator) {
+      setIndicator(initialIndicator);
+      handleInvestigate(initialIndicator);
+      onIndicatorConsumed?.();
+    }
+  }, [initialIndicator]);
+
+  async function handleInvestigate(value = indicator) {
+    if (!value.trim() || loading) return;
     setLoading(true);
     setError(null);
     setGraphData(null);
@@ -201,7 +209,7 @@ export default function Graph() {
     setPan({ x: 0, y: 0 });
     setAiSummary(null);
     try {
-      const res = await fetch(`${API_BASE}/graph?indicator=${encodeURIComponent(indicator.trim())}`);
+      const res = await fetch(`${API_BASE}/graph?indicator=${encodeURIComponent(value.trim())}`);
       if (!res.ok) throw new Error("Graph request failed");
       if (!(res.headers.get("content-type") || "").includes("application/json"))
         throw new Error("Backend indisponível");
@@ -304,7 +312,7 @@ export default function Graph() {
             />
           </div>
           <Button
-            onClick={handleInvestigate}
+            onClick={() => handleInvestigate()}
             disabled={loading || !indicator.trim()}
             icon={loading
               ? <span style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", animation: "spin 0.7s linear infinite" }} />

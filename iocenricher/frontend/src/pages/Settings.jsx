@@ -696,7 +696,7 @@ export default function Settings() {
           <Card>
             <SectionTitle icon="user" title={"Profile Settings"} desc="Manage your personal information and preferences." />
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24, padding: 16, background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-              <div style={{ width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(135deg, ${C.accent}, ${C.accentLight})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.green, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, color: C.bg, flexShrink: 0 }}>
                 {profile.name?.split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase() || "U"}
               </div>
               <div>

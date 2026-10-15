@@ -75,6 +75,10 @@ function calculateRisk(sources, type) {
   if (score >= 70) { level = 'CRÍTICO'; recommendation = 'BLOQUEAR'; }
   else if (score >= 40) { level = 'ALTO'; recommendation = 'INVESTIGAR'; }
   else if (score >= 15) { level = 'MÉDIO'; recommendation = 'MONITORAR'; }
+  else if (!sources.virustotal && !sources.abuseipdb && !sources.urlhaus && !sources.malwarebazaar) {
+    level = 'INCONCLUSIVO'; recommendation = 'INVESTIGAR';
+    factors.push('Fontes de reputação indisponíveis ou sem resposta; não é possível concluir que o IOC é benigno');
+  }
   else { level = 'BAIXO'; recommendation = 'IGNORAR'; }
 
   return { score, level, recommendation, factors };

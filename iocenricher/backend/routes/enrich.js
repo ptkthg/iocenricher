@@ -29,6 +29,28 @@ async function safe(fn) {
   try { return await fn(); } catch { return null; }
 }
 
+function configured(key, fn) {
+  if (!process.env[key]) return Promise.reject(Object.assign(new Error('API key not set'), { code: 'MISSING_KEY' }));
+  return fn();
+}
+
+function sourceStatus(settled) {
+  if (settled.status === 'fulfilled') return settled.value?.found === false ? 'no_match' : 'ok';
+  const error = settled.reason;
+  if (error.code === 'MISSING_KEY') return 'not_configured';
+  if (error.response?.status === 401 || error.response?.status === 403) return 'auth_error';
+  if (error.response?.status === 404) return 'no_match';
+  if (error.response?.status === 429) return 'rate_limited';
+  return 'unavailable';
+}
+
+function recordSource(results, name, settled, onlyFound = false) {
+  results.source_status[name] = sourceStatus(settled);
+  if (settled.status === 'fulfilled' && (!onlyFound || settled.value?.found)) {
+    results.sources[name] = settled.value;
+  }
+}
+
 router.post('/enrich', async (req, res) => {
   const { indicator } = req.body;
   if (!indicator || typeof indicator !== 'string')
@@ -36,7 +58,7 @@ router.post('/enrich', async (req, res) => {
 
   const type = detectType(indicator.trim());
   const results = {
-    indicator: indicator.trim(), type, sources: {},
+    indicator: indicator.trim(), type, sources: {}, source_status: {},
     risk: null, recommendation: null, ai_analysis: null,
     timestamp: new Date().toISOString()
   };
@@ -44,64 +66,64 @@ router.post('/enrich', async (req, res) => {
   try {
     if (type === 'ip') {
       const [vt, ipi, abuse, shodan, pdns, whoisData, subnet] = await Promise.allSettled([
-        vtIP(indicator),
+        configured('VIRUSTOTAL_API_KEY', () => vtIP(indicator)),
         ipinfoIP(indicator),
-        abuseIP(indicator),
-        shodanIP(indicator),
+        configured('ABUSEIPDB_API_KEY', () => abuseIP(indicator)),
+        configured('SHODAN_API_KEY', () => shodanIP(indicator)),
         reverseLookup(indicator),
         lookupIP(indicator),
         analyzeSubnet(indicator),
       ]);
-      if (vt.status === 'fulfilled') results.sources.virustotal = vt.value;
-      if (ipi.status === 'fulfilled') results.sources.ipinfo = ipi.value;
-      if (abuse.status === 'fulfilled') results.sources.abuseipdb = abuse.value;
-      if (shodan.status === 'fulfilled') results.sources.shodan = shodan.value;
-      if (pdns.status === 'fulfilled' && pdns.value?.found) results.sources.passivedns = pdns.value;
-      if (whoisData.status === 'fulfilled' && whoisData.value?.found) results.sources.whois = whoisData.value;
-      if (subnet.status === 'fulfilled' && subnet.value?.found) results.sources.subnet = subnet.value;
+      recordSource(results, 'virustotal', vt);
+      recordSource(results, 'ipinfo', ipi);
+      recordSource(results, 'abuseipdb', abuse);
+      recordSource(results, 'shodan', shodan);
+      recordSource(results, 'passivedns', pdns, true);
+      recordSource(results, 'whois', whoisData, true);
+      recordSource(results, 'subnet', subnet, true);
     }
 
     if (type === 'hash') {
       const [vt, mb, uh] = await Promise.allSettled([
-        enrichHash(indicator), checkHash(indicator), checkPayloadHash(indicator)
+        configured('VIRUSTOTAL_API_KEY', () => enrichHash(indicator)), checkHash(indicator), configured('URLHAUS_API_KEY', () => checkPayloadHash(indicator))
       ]);
-      if (vt.status === 'fulfilled') results.sources.virustotal = vt.value;
-      if (mb.status === 'fulfilled') results.sources.malwarebazaar = mb.value;
-      if (uh.status === 'fulfilled') results.sources.urlhaus = uh.value;
+      recordSource(results, 'virustotal', vt);
+      recordSource(results, 'malwarebazaar', mb);
+      recordSource(results, 'urlhaus', uh);
     }
 
     if (type === 'domain') {
       const [vt, uh, pdns, whoisData, ssl, typo] = await Promise.allSettled([
-        enrichDomain(indicator),
-        checkHostname(indicator),
+        configured('VIRUSTOTAL_API_KEY', () => enrichDomain(indicator)),
+        configured('URLHAUS_API_KEY', () => checkHostname(indicator)),
         forwardLookup(indicator),
         lookupDomain(indicator),
         getCertificates(indicator),
         Promise.resolve(analyzeDomain(indicator)),
       ]);
-      if (vt.status === 'fulfilled') results.sources.virustotal = vt.value;
-      if (uh.status === 'fulfilled') results.sources.urlhaus = uh.value;
-      if (pdns.status === 'fulfilled' && pdns.value?.found) results.sources.passivedns = pdns.value;
-      if (whoisData.status === 'fulfilled' && whoisData.value?.found) results.sources.whois = whoisData.value;
-      if (ssl.status === 'fulfilled' && ssl.value?.found) results.sources.ssl = ssl.value;
-      if (typo.status === 'fulfilled') results.sources.typosquatting = typo.value;
+      recordSource(results, 'virustotal', vt);
+      recordSource(results, 'urlhaus', uh);
+      recordSource(results, 'passivedns', pdns, true);
+      recordSource(results, 'whois', whoisData, true);
+      recordSource(results, 'ssl', ssl, true);
+      recordSource(results, 'typosquatting', typo);
     }
 
     if (type === 'url') {
       let domain = null;
       try { domain = new URL(indicator).hostname; } catch {}
       const tasks = [
-        enrichURL(indicator),
-        checkURL(indicator),
+        configured('VIRUSTOTAL_API_KEY', () => enrichURL(indicator)),
+        configured('URLHAUS_API_KEY', () => checkURL(indicator)),
         ...(domain ? [lookupDomain(domain), getCertificates(domain), Promise.resolve(analyzeDomain(domain))] : []),
       ];
       const results2 = await Promise.allSettled(tasks);
-      if (results2[0].status === 'fulfilled') results.sources.virustotal = results2[0].value;
-      if (results2[1].status === 'fulfilled') results.sources.urlhaus = results2[1].value;
+      recordSource(results, 'virustotal', results2[0]);
+      recordSource(results, 'urlhaus', results2[1]);
       if (domain) {
-        if (results2[2]?.status === 'fulfilled' && results2[2].value?.found) results.sources.whois = results2[2].value;
-        if (results2[3]?.status === 'fulfilled' && results2[3].value?.found) results.sources.ssl = results2[3].value;
-        if (results2[4]?.status === 'fulfilled') results.sources.typosquatting = results2[4].value;
+        recordSource(results, 'whois', results2[2], true);
+        recordSource(results, 'ssl', results2[3], true);
+        recordSource(results, 'typosquatting', results2[4]);
       }
     }
 
@@ -113,9 +135,11 @@ router.post('/enrich', async (req, res) => {
     try {
       const ai = await analyzeIOC(results);
       results.ai_analysis = ai;
+      results.source_status.groq = 'ok';
     } catch (e) {
       console.warn('Análise IA falhou:', e.message);
       results.ai_analysis = null;
+      results.source_status.groq = !process.env.GROQ_API_KEY ? 'not_configured' : 'unavailable';
     }
 
     res.json(results);

@@ -335,7 +335,7 @@ export default function Bulk() {
             <div style={{ height: 6, background: C.border, borderRadius: 6, overflow: "hidden" }}>
               <div style={{
                 width: `${progressPct}%`, height: "100%", borderRadius: 6,
-                background: `linear-gradient(90deg, ${C.accent}, ${C.accentLight})`,
+                background: C.green,
                 transition: "width 0.3s ease", boxShadow: `0 0 8px ${C.accent}88`
               }} />
             </div>

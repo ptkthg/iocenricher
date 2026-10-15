@@ -24,17 +24,13 @@ const TECHNIQUES = {
 
 // Keyword → technique mapping
 const KEYWORD_MAP = [
-  { keywords: ['botnet', 'c2', 'c&c', 'command', 'control', 'cnc'], techniques: ['T1071', 'T1095', 'T1041'] },
-  { keywords: ['phishing', 'spear', 'credential', 'login', 'harvest', 'spamming', 'spam'], techniques: ['T1566', 'T1552', 'T1539'] },
-  { keywords: ['malware', 'download', 'dropper', 'loader', 'payload', 'exe', 'malware_download'], techniques: ['T1105', 'T1204'] },
-  { keywords: ['ransomware', 'ransom', 'encrypt', 'locker', 'cryptolocker'], techniques: ['T1486', 'T1041'] },
-  { keywords: ['rat', 'remote', 'backdoor', 'trojan', 'remote access'], techniques: ['T1219', 'T1071'] },
-  { keywords: ['banker', 'banking', 'formgrabber', 'stealer', 'infostealer', 'keylog'], techniques: ['T1056', 'T1539', 'T1552'] },
-  { keywords: ['miner', 'coin', 'crypto', 'xmrig', 'monero'], techniques: ['T1496'] },
-  { keywords: ['exploit', 'kit', 'vulnerability', 'cve', 'rig', 'fallout', 'blackhole'], techniques: ['T1190', 'T1588'] },
-  { keywords: ['ddos', 'dos', 'flood', 'amplification', 'reflection'], techniques: ['T1498'] },
-  { keywords: ['obfuscat', 'pack', 'crypt', 'encoded', 'shellcode'], techniques: ['T1027', 'T1059'] },
-  { keywords: ['infrastructure', 'hosting', 'bulletproof'], techniques: ['T1583'] },
+  { keywords: ['phishing', 'spearphishing'], techniques: ['T1566'] },
+  { keywords: ['ransomware', 'file encryption'], techniques: ['T1486'] },
+  { keywords: ['keylogger', 'keylogging'], techniques: ['T1056'] },
+  { keywords: ['malware download', 'malware_download'], techniques: ['T1105'] },
+  { keywords: ['obfuscated', 'obfuscation'], techniques: ['T1027'] },
+  { keywords: ['cryptominer', 'xmrig'], techniques: ['T1496'] },
+  { keywords: ['ddos', 'denial of service'], techniques: ['T1498'] },
 ];
 
 function normalize(str) {
@@ -63,16 +59,9 @@ function mapToMitre(sources, type) {
   }
 
   if (vt) {
-    if (vt.malicious > 0) signals.push('malware');
     if (vt.categories) Object.values(vt.categories).forEach(c => signals.push(normalize(c)));
     if (vt.tags) vt.tags.forEach(t => signals.push(normalize(t)));
   }
-
-  // Baseline techniques by IOC type
-  if (type === 'ip' && sources.ipinfo) techniqueIds.add('T1583');
-  if (type === 'url') techniqueIds.add('T1105');
-  if (type === 'hash') techniqueIds.add('T1204');
-  if (type === 'domain') techniqueIds.add('T1583');
 
   // Match signals to techniques
   for (const signal of signals) {
@@ -81,12 +70,6 @@ function mapToMitre(sources, type) {
         rule.techniques.forEach(t => techniqueIds.add(t));
       }
     }
-  }
-
-  // If high risk with no specific match, add generic ones
-  if (techniqueIds.size <= 1 && (sources.urlhaus?.found || sources.malwarebazaar?.found)) {
-    techniqueIds.add('T1071');
-    techniqueIds.add('T1041');
   }
 
   return [...techniqueIds].map(id => TECHNIQUES[id]).filter(Boolean);
