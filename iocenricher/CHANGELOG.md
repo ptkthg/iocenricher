@@ -9,6 +9,7 @@
 - Classificação com score, confiança e cobertura separados. Ausência de reputação e falhas externas não geram risco baixo ou score zero.
 - Validação estrita de IOC, corpo limitado, webhook Slack restrito, limites por endpoint, concorrência e cache de fontes. Limite distribuído opcional via Upstash Redis REST.
 - Análise em lote, histórico e relatórios deixam de apresentar falhas como resultados benignos.
+- A análise individual distingue visualmente erro de consulta de reputação; fallback e relatório HTML não aplicam cor de baixo risco a estados desconhecidos. A linha do tempo deixa de apresentar detecções atuais como se fossem da primeira observação.
 
 ### Fase 2 — em andamento
 

@@ -9,7 +9,7 @@ import { Card, Badge, Button, Input, PageHeader } from "../components/UI";
 import RelationshipPreview from "../components/RelationshipPreview";
 
 function ScoreGauge({ score, level }) {
-  const cfg = RISK_CFG[level] || RISK_CFG.BAIXO;
+  const cfg = RISK_CFG[level] || RISK_CFG.INCONCLUSIVO;
   const r = 32, cx = 40, cy = 40, circ = 2 * Math.PI * r;
   const dash = ((score ?? 0) / 100) * circ;
   return (
@@ -655,8 +655,12 @@ function VerdictBanner({ result, risk }) {
   // Determine verdict
   let verdict, verdictLabel, reason, color, bg;
 
-  if (risk.level === 'INCONCLUSIVO') {
-    verdict = "INCONCLUSIVE"; verdictLabel = "Inconclusive";
+  if (result?.query_status === 'error') {
+    verdict = "QUERY_ERROR"; verdictLabel = "Erro de consulta";
+    reason = "A consulta falhou. Nenhuma conclusão de reputação pode ser feita nesta coleta.";
+    color = C.textMuted; bg = C.bgInput;
+  } else if (risk.level === 'INCONCLUSIVO') {
+    verdict = "INCONCLUSIVE"; verdictLabel = "Inconclusivo";
     reason = "Fontes de reputação indisponíveis ou sem resposta. Não é possível concluir que o IOC é benigno.";
     color = C.textMuted; bg = C.bgInput;
   } else if (risk.classification === 'MALICIOSO' || ['CRÍTICO', 'ALTO'].includes(risk.level)) {
@@ -666,7 +670,7 @@ function VerdictBanner({ result, risk }) {
       ? `Detected by ${vt.malicious} antivirus engines on VirusTotal`
       : mb?.found ? `Hash confirmed in MalwareBazaar — ${mb.signature || "known malware"}`
       : uh?.found ? `Listed in URLhaus as ${uh.threat || "malicious URL"}`
-      : `High abuse score: ${ab?.abuse_score}% confirmed reports`;
+      : risk.factors?.[0] || 'Há evidências de risco nesta coleta; confira os fatores e a fonte original.';
     color = C.red; bg = "rgba(248,113,113,0.08)";
   } else if (risk.classification === 'SUSPEITO' || risk.level === 'MÉDIO') {
     verdict = "SUSPICIOUS";
@@ -685,8 +689,8 @@ function VerdictBanner({ result, risk }) {
     color = C.green; bg = "rgba(16,185,129,0.08)";
   } else {
     verdict = "INCONCLUSIVE";
-    verdictLabel = "Inconclusive";
-    reason = "Insufficient data to make a definitive verdict. Manual investigation recommended";
+    verdictLabel = "Inconclusivo";
+    reason = "Dados insuficientes para uma conclusão. Revise manualmente as fontes e suas limitações.";
     color = C.textMuted; bg = "rgba(136,150,173,0.08)";
   }
 
@@ -709,8 +713,8 @@ function VerdictBanner({ result, risk }) {
       {/* Details */}
       <div className="verdict-details" style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color, marginBottom: 6 }}>
-          {verdict === "MALICIOUS" ? "⚠ Threat Confirmed" :
-           verdict === "SUSPICIOUS" ? "⚡ Requires Investigation" :
+          {verdict === "MALICIOUS" ? "⚠ Ameaça indicada pelas fontes" :
+           verdict === "SUSPICIOUS" ? "⚡ Requer investigação" :
            verdict === "CLEAN" ? "✓ Baixo risco nas fontes disponíveis" : "? Revisão manual necessária"}
         </div>
         <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6, marginBottom: 8 }}>{reason}</div>
@@ -751,7 +755,7 @@ function ContextTimeline({ result }) {
 
   const events = [
     whoisData?.created && { date: whoisData.created, label: "Domain Registered", icon: "globe", color: C.accentLight, detail: whoisData.registrar?.split(" ").slice(0,2).join(" ") || "" },
-    vt?.first_seen && { date: new Date(vt.first_seen * 1000).toISOString(), label: "First Seen (VirusTotal)", icon: "search", color: "#394EFF", detail: `${vt.malicious || 0} detections at first scan` },
+    vt?.first_seen && { date: new Date(vt.first_seen * 1000).toISOString(), label: "Primeira observação no VirusTotal", icon: "search", color: "#394EFF", detail: "Data informada pela fonte; a reputação atual pode ser diferente." },
     uh?.first_seen && { date: uh.first_seen, label: "Reported to URLhaus", icon: "alert", color: C.red, detail: uh.threat || "Malware distribution" },
     mb?.first_seen && { date: mb.first_seen, label: "Added to MalwareBazaar", icon: "alert", color: C.red, detail: mb.signature || "Malicious file" },
     ab?.last_reported && { date: ab.last_reported, label: "Last Abuse Report", icon: "alert", color: C.orange, detail: `${ab.total_reports} total reports · ${ab.abuse_score}% confidence` },
@@ -1079,6 +1083,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
     .badge-high { background: #fef3c7; color: #d97706; }
     .badge-medium { background: #fefce8; color: #ca8a04; }
     .badge-low { background: #dcfce7; color: #16a34a; }
+    .badge-unknown { background: #e8edf0; color: #52646d; }
     .section { margin-bottom: 20px; }
     .section-title { font-size: 14px; font-weight: 700; color: #1e40af; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -1099,7 +1104,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
     </div>
     <div style="text-align:right">
       <div style="font-size:18px;font-weight:700;font-family:monospace">${esc(r.indicator)}</div>
-      <span class="badge badge-${r.risk?.level === 'CRÍTICO' ? 'critical' : r.risk?.level === 'ALTO' ? 'high' : r.risk?.level === 'MÉDIO' ? 'medium' : 'low'}">${esc(r.risk?.level || 'INCONCLUSIVO')} · ${r.risk?.score == null ? 'Score indisponível' : `Score ${esc(r.risk.score)}/100`}</span>
+      <span class="badge badge-${r.risk?.level === 'CRÍTICO' ? 'critical' : r.risk?.level === 'ALTO' ? 'high' : r.risk?.level === 'MÉDIO' ? 'medium' : r.risk?.level === 'BAIXO' ? 'low' : 'unknown'}">${esc(r.query_status === 'error' ? 'ERRO DE CONSULTA' : r.risk?.level || 'INCONCLUSIVO')} · ${r.risk?.score == null ? 'Score indisponível' : `Score ${esc(r.risk.score)}/100`}</span>
       <div style="font-size:11px;color:#94a3b8;margin-top:4px">Generated: ${new Date().toLocaleString('pt-BR')}</div>
     </div>
   </div>
@@ -1695,7 +1700,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
           ) : (
             <div style={{ display: "flex", flexDirection: "column" }}>
               {history.slice(0, 6).map((h, i) => {
-                const hcfg = RISK_CFG[h.risk?.level] || RISK_CFG.BAIXO;
+                const hcfg = RISK_CFG[h.risk?.level] || RISK_CFG.INCONCLUSIVO;
                 const isActive = currentResult?.indicator === h.indicator;
                 return (
                   <div key={i}

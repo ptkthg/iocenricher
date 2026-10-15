@@ -44,6 +44,8 @@ try {
     if (result?.indicator === '00000000000000000000000000000000') break;
   }
   if (result?.risk?.score !== null || result?.risk?.level !== 'INCONCLUSIVO' || result?.query_status !== 'error') throw new Error(`Falha de fonte classificada incorretamente: ${JSON.stringify(result?.risk)}`);
+  const queryErrorVerdict = await evaluate(`document.querySelector('.verdict-banner')?.textContent.includes('Erro de consulta')`);
+  if (!queryErrorVerdict) throw new Error('Falha de fonte não foi identificada como erro de consulta na análise individual');
   await send('Page.navigate', { url: 'http://127.0.0.1:5174/historico' });
   await pause(650);
   await evaluate(`[...document.querySelectorAll('tr')].find(row=>row.textContent.includes('00000000000000000000000000000000'))?.querySelector('button')?.click()`);
