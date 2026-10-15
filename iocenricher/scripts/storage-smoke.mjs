@@ -29,7 +29,9 @@ try {
   if (cases.count !== 1 || cases.status !== 'Arquivado' || cases.iocs !== 1 || !cases.createdAtPreserved) throw new Error(`Casos falharam: ${JSON.stringify(cases)}`);
   const backup = await evaluate(`(async()=>{const s=await import('/src/lib/investigationStore.js');const file=await s.exportWorkspaceBackup();await s.importWorkspaceBackup(file);const after=await s.exportWorkspaceBackup();let invalid=false;try{await s.importWorkspaceBackup({...file,notes:[{indicator:'example.com',notes:4,tags:[]}]})}catch{invalid=true}return {observations:after.observations.length,cases:after.cases.length,notes:after.notes.length,invalid}})()`);
   if (backup.observations !== 2 || backup.cases !== 1 || backup.notes !== 1 || !backup.invalid) throw new Error(`Backup falhou: ${JSON.stringify(backup)}`);
-  console.log(JSON.stringify({ migrated, observations, note, cases, backup }));
+  const retention = await evaluate(`(async()=>{const s=await import('/src/lib/investigationStore.js');const result=await s.deleteInvestigationsBefore('2026-01-02T00:00:00.000Z');return {removed:result.removed,remaining:result.observations.map(item=>item.timestamp),cases:(await s.loadCases()).length,note:(await s.loadNote('example.com')).notes}})()`);
+  if (retention.removed !== 1 || retention.remaining.length !== 1 || retention.remaining[0] !== '2026-01-03T00:00:00.000Z' || retention.cases !== 1 || retention.note !== 'nota atualizada') throw new Error(`Retenção falhou: ${JSON.stringify(retention)}`);
+  console.log(JSON.stringify({ migrated, observations, note, cases, backup, retention }));
 } finally {
   await send('Target.closeTarget', { targetId: tab.id });
   socket.close();

@@ -17,6 +17,7 @@
 - Histórico com exclusão seletiva, filtros e exportação CSV; relatórios JSON/CSV e impressão técnica para salvar como PDF com dados reais.
 - Preferências simplificadas para estado verificável das fontes, backup local e notificação Slack já existente.
 - Notas, tags e casos no IndexedDB; backup JSON versionado exporta e restaura observações, notas e casos sem substituir registros preexistentes.
+- Retenção manual nas Preferências mostra quantos registros serão excluídos e preserva notas e casos; o fluxo exige confirmação explícita.
 
 ### Fases 3 a 5 — incrementos parciais
 
@@ -24,4 +25,5 @@
 - IOC Diff compara snapshots e trata falha de fonte como diferença de cobertura.
 - Casos locais incluem IOCs, decisões e relações diretas comprovadas por URL ou Passive DNS.
 - Grafo individual informa origem, campo, horário e confiança das arestas, com exportações JSON e SVG.
-- Detection Studio gera buscas KQL, SPL e YARA-L Search e playbooks de investigação; pacote operacional JSON reúne observação, histórico, nota, casos, busca e playbook.
+- Grafo do caso apresenta conexões verificadas, evidência por aresta, filtro de relacionamento, navegação por teclado e exportações JSON/SVG.
+- Detection Studio gera buscas KQL, SPL e YARA-L Search e playbooks de investigação; pacote operacional JSON e impressão para PDF reúnem observação, histórico, nota, casos, relações, busca e playbook.

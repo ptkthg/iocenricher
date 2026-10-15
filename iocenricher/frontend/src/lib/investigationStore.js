@@ -112,6 +112,26 @@ export async function deleteInvestigation(indicator, timestamp) {
   return updated;
 }
 
+export async function deleteInvestigationsBefore(cutoff) {
+  const cutoffTime = Date.parse(cutoff);
+  if (!Number.isFinite(cutoffTime)) throw new Error('Data de retenção inválida');
+  const database = await openDatabase();
+  await migrateLegacy(database);
+  const transaction = database.transaction('observations', 'readwrite');
+  const done = transactionDone(transaction);
+  const store = transaction.objectStore('observations');
+  const records = await requestResult(store.getAll());
+  let removed = 0;
+  records.forEach(record => {
+    const observedAt = Date.parse(record.timestamp);
+    if (Number.isFinite(observedAt) && observedAt < cutoffTime) { store.delete(record.id); removed++; }
+  });
+  await done;
+  const updated = await loadInvestigations();
+  mirror(updated);
+  return { removed, observations: updated };
+}
+
 function legacyNote(indicator) {
   try { return JSON.parse(localStorage.getItem(`ioc_note_${indicator}`) || '{}'); } catch { return {}; }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { C } from '../lib/theme';
-import { loadInvestigations, saveInvestigations, exportWorkspaceBackup, importWorkspaceBackup } from '../lib/investigationStore';
+import { loadInvestigations, saveInvestigations, exportWorkspaceBackup, importWorkspaceBackup, deleteInvestigationsBefore } from '../lib/investigationStore';
 
 const SETTINGS_KEY = 'iocenricher_settings';
 const apiBase = import.meta.env.VITE_API_URL || '/api';
@@ -15,6 +15,9 @@ export default function Settings({ onHistoryChange }) {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [retentionDays, setRetentionDays] = useState(90);
+  const cutoff = Date.now() - retentionDays * 86400000;
+  const oldObservations = history.filter(item => Number.isFinite(Date.parse(item.timestamp)) && Date.parse(item.timestamp) < cutoff).length;
 
   async function refresh() {
     setLoading(true);
@@ -79,11 +82,22 @@ export default function Settings({ onHistoryChange }) {
     } catch { setMessage('Não foi possível criar o backup local.'); }
   }
 
+  async function applyRetention() {
+    if (!oldObservations) return;
+    if (!window.confirm(`Excluir ${oldObservations} observação(ões) anteriores a ${retentionDays} dias deste navegador? Exporte um backup antes se precisar preservá-las.`)) return;
+    try {
+      const result = await deleteInvestigationsBefore(new Date(cutoff).toISOString());
+      setHistory(result.observations);
+      onHistoryChange?.(result.observations);
+      setMessage(`${result.removed} observação(ões) antigas excluídas. Notas e casos foram preservados.`);
+    } catch { setMessage('Não foi possível aplicar a retenção. Nenhum registro foi removido.'); }
+  }
+
   return <div className="stack">
     <div><h1 className="page-title">Preferências</h1><p className="page-subtitle">Estado das integrações e dados deste navegador.</p></div>
     {message && <div className="panel panel-pad" role="status">{message}</div>}
     <section className="panel panel-pad"><div className="toolbar" style={{ justifyContent: 'space-between' }}><h2 className="panel-title">Fontes OSINT</h2><button className="btn" onClick={refresh} disabled={loading}>{loading ? 'Verificando...' : 'Atualizar estado'}</button></div><p style={{ color: C.textMuted }}>O estado abaixo vem da API. Disponibilidade de uma fonte pode mudar entre esta verificação e uma consulta.</p>{sources ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Fonte</th><th>Estado verificado</th></tr></thead><tbody>{sources.map(source => <tr key={source.name}><td>{source.name}</td><td style={{ color: source.status === 'online' ? C.green : source.status === 'auth_error' ? C.yellow : C.textMuted }}>{source.status}</td></tr>)}</tbody></table></div> : <div className="empty">Estado das fontes indisponível.</div>}</section>
-    <section className="panel panel-pad"><h2 className="panel-title">Dados locais e backup</h2><p style={{ color: C.textMuted, lineHeight: 1.6 }}>Há {history.length} observação(ões) salvas neste navegador. Apagar dados do navegador pode remover histórico, notas e casos. O backup inclui esses três conjuntos; a importação preserva os registros existentes.</p><div className="toolbar"><button className="btn" onClick={exportBackup}>Exportar backup JSON</button><label className="btn" style={{ cursor: 'pointer' }}>Importar backup JSON<input type="file" accept="application/json,.json" onChange={importBackup} style={{ display: 'none' }} /></label></div></section>
+    <section className="panel panel-pad"><h2 className="panel-title">Dados locais e backup</h2><p style={{ color: C.textMuted, lineHeight: 1.6 }}>Há {history.length} observação(ões) salvas neste navegador. Apagar dados do navegador pode remover histórico, notas e casos. O backup inclui esses três conjuntos; a importação preserva os registros existentes.</p><div className="toolbar"><button className="btn" onClick={exportBackup}>Exportar backup JSON</button><label className="btn" style={{ cursor: 'pointer' }}>Importar backup JSON<input type="file" accept="application/json,.json" onChange={importBackup} style={{ display: 'none' }} /></label></div><div className="retention-controls"><label>Remover observações anteriores a<select className="field" value={retentionDays} onChange={event => setRetentionDays(Number(event.target.value))}>{[30, 90, 180, 365].map(days => <option key={days} value={days}>{days} dias</option>)}</select></label><span>{oldObservations} observação(ões) elegíveis; notas e casos permanecem.</span><button className="btn" disabled={!oldObservations} onClick={applyRetention}>Aplicar retenção</button></div></section>
     <section className="panel panel-pad"><h2 className="panel-title">Notificações Slack</h2><p style={{ color: C.textMuted, lineHeight: 1.6 }}>Quando ativada, a aplicação envia análises de risco alto ou crítico ao webhook informado. O endereço fica nas preferências deste navegador e é enviado à API somente para entregar a mensagem.</p><label className="toolbar" style={{ marginBottom: 12 }}><input type="checkbox" checked={Boolean(settings.slackAlerts)} onChange={event => setSettings(value => ({ ...value, slackAlerts: event.target.checked }))} /> Ativar notificações de análises de alto risco</label><label style={{ display: 'block', marginBottom: 7 }}>Webhook oficial do Slack</label><input className="field" type="password" autoComplete="off" value={settings.slackWebhook || ''} onChange={event => setSettings(value => ({ ...value, slackWebhook: event.target.value }))} placeholder="https://hooks.slack.com/services/..." style={{ width: '100%', marginBottom: 12 }} /><div className="toolbar"><button className="btn btn-primary" onClick={saveSlack}>Salvar preferência</button><button className="btn" onClick={testSlack} disabled={testing || !settings.slackWebhook}>{testing ? 'Enviando...' : 'Enviar mensagem de teste'}</button></div></section>
     <section className="panel panel-pad"><h2 className="panel-title">Classificação de risco</h2><p style={{ color: C.textMuted, lineHeight: 1.6 }}>O score é calculado no backend a partir das respostas disponíveis. A confiança descreve a consistência das evidências; a cobertura mostra quantas fontes de reputação responderam. Uma falha de consulta permanece inconclusiva e não recebe score zero.</p></section>
   </div>;

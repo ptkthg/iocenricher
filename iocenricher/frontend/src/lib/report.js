@@ -57,3 +57,27 @@ export function printInvestigationReport(items) {
   setTimeout(() => popup.print(), 250);
   return true;
 }
+
+export function printOperationalReport(popup, payload) {
+  if (!popup || !payload?.observation) return false;
+  const { observation, observations, analystNote, cases, hunt, playbook, relationships } = payload;
+  const list = items => items?.length ? `<ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p>Nenhum registro disponível.</p>';
+  const section = (title, body) => `<section><h2>${escapeHtml(title)}</h2>${body}</section>`;
+  const sources = Object.entries(observation.source_status || {}).map(([name, status]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(status)}</td></tr>`).join('');
+  const ai = observation.ai_analysis;
+  const html = [
+    section('IOC Passport', `<p><strong>${escapeHtml(observation.indicator)}</strong> · ${escapeHtml(observation.type)} · coletado em ${escapeHtml(observation.timestamp)}</p><p>Classificação: ${escapeHtml(observation.risk?.classification || 'INCONCLUSIVO')} · Score: ${observation.risk?.score == null ? 'indisponível' : escapeHtml(observation.risk.score)} · Confiança: ${escapeHtml(observation.risk?.confidence?.level || 'não avaliada')} · Cobertura: ${escapeHtml(observation.risk?.coverage ? `${observation.risk.coverage.successful}/${observation.risk.coverage.total}` : 'não informada')}</p>`),
+    section('Evidências e limites', list(observation.risk?.factors)),
+    section('Fontes OSINT', `<table><thead><tr><th>Fonte</th><th>Estado</th></tr></thead><tbody>${sources || '<tr><td colspan="2">Sem resultados</td></tr>'}</tbody></table>`),
+    section('MITRE ATT&CK', list((observation.mitre || []).map(item => `${item.id} · ${item.name} (${item.tactic})`))),
+    section('Análise assistida', ai ? `<p><strong>Resumo da coleta:</strong> ${escapeHtml(ai.summary)}</p><p><strong>Conclusão e limites:</strong> ${escapeHtml(ai.conclusion)}</p>${list((ai.hypotheses || []).map(item => `Hipótese: ${item.text} [${item.evidence_ids?.join(', ') || 'sem ID'}]`))}` : '<p>IA indisponível nesta observação.</p>'),
+    section('Relações verificadas', list((relationships || []).map(edge => `${edge.from} → ${edge.to}: ${edge.relation} [${edge.evidence.source}; ${edge.evidence.confidence}; ${edge.evidence.timestamp}]`))),
+    section('Busca de hunting', `<p>${escapeHtml(hunt?.title)} · ${escapeHtml(hunt?.model)}</p><pre>${escapeHtml(hunt?.query)}</pre><p>${escapeHtml(hunt?.limitation)}</p>`),
+    section('Playbook', (playbook || []).map((step, index) => `<div class="step"><strong>${index + 1}. ${escapeHtml(step.title)}</strong><p>Objetivo: ${escapeHtml(step.objective)}</p><p>Pré-requisitos: ${escapeHtml(step.prerequisite)}</p><p>Evidências esperadas: ${escapeHtml(step.expected)}</p><p>Conclusão: ${escapeHtml(step.done)}</p></div>`).join('')),
+    section('Histórico, notas e casos', `<p>${observations?.length || 0} observação(ões) deste IOC: ${escapeHtml((observations || []).map(item => item.timestamp).join(', '))}</p><p><strong>Nota do analista:</strong> ${escapeHtml(analystNote?.notes || 'não registrada')}</p><p><strong>Tags:</strong> ${escapeHtml(analystNote?.tags?.join(', ') || 'nenhuma')}</p>${list((cases || []).map(item => `${item.title} · ${item.status} · ${item.id}`))}`),
+  ].join('');
+  popup.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pacote operacional IOC Enricher</title><style>body{font:12px/1.5 Arial,sans-serif;color:#1a2a30;max-width:850px;margin:28px auto;padding:0 20px}h1{font-size:22px;border-bottom:2px solid #25815e;padding-bottom:10px}h2{font-size:15px;color:#174a3a}section{border-top:1px solid #b9c8ca;padding:10px 0;break-inside:avoid}p{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f0f4f3;padding:10px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #d7e0e0;padding:5px;text-align:left}.step{padding:6px 0;border-top:1px solid #e0e8e7}small{color:#54676b}@media print{body{max-width:none;margin:0}}</style></head><body><h1>IOC Enricher · Pacote técnico de investigação</h1><small>Gerado em ${escapeHtml(new Date().toISOString())}. Consultas e recomendações requerem revisão; nenhuma busca ou contenção foi executada pelo IOC Enricher.</small>${html}</body></html>`);
+  popup.document.close(); popup.focus();
+  setTimeout(() => popup.print(), 250);
+  return true;
+}

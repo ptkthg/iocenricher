@@ -3,6 +3,8 @@ import { C, fmtDate } from '../lib/theme';
 import { generateHunt } from '../lib/detectionQueries';
 import { buildPlaybook } from '../lib/playbook';
 import { loadCases, loadNote } from '../lib/investigationStore';
+import { correlateCase } from '../lib/caseCorrelation';
+import { printOperationalReport } from '../lib/report';
 
 function downloadPackage(content) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' }));
@@ -29,19 +31,29 @@ export default function DetectionStudio({ history = [] }) {
     try { await navigator.clipboard.writeText(generated.query); setCopied(true); setTimeout(() => setCopied(false), 1800); }
     catch { setError('Não foi possível copiar a consulta.'); }
   }
+  async function packageData() {
+    const [note, allCases] = await Promise.all([loadNote(observation.indicator), loadCases()]);
+    const cases = allCases.filter(item => item.iocs?.includes(observation.indicator));
+    return { schema: 'ioc-enricher-operational-v1', generatedAt: new Date().toISOString(), observation, observations: history.filter(item => item.indicator === observation.indicator), analystNote: note, cases, relationships: cases.flatMap(item => correlateCase(item, history)), platform, hunt: generated, playbook };
+  }
   async function exportQuery() {
     try {
-      const [note, cases] = await Promise.all([loadNote(observation.indicator), loadCases()]);
-      downloadPackage({ schema: 'ioc-enricher-operational-v1', generatedAt: new Date().toISOString(), passport: observation, observations: history.filter(item => item.indicator === observation.indicator), analystNote: note, cases: cases.filter(item => item.iocs?.includes(observation.indicator)), platform, hunt: generated, playbook });
+      downloadPackage(await packageData());
       setError('');
     } catch { setError('Não foi possível montar o pacote local.'); }
+  }
+  async function printPackage() {
+    const popup = window.open('', '_blank');
+    if (!popup) { setError('Permita janelas deste site para imprimir o pacote.'); return; }
+    try { printOperationalReport(popup, await packageData()); setError(''); }
+    catch { popup.close(); setError('Não foi possível montar o PDF técnico.'); }
   }
 
   return <div className="stack">
     <div><h1 className="page-title">Detection Studio</h1><p className="page-subtitle">Gere buscas de hunting a partir de observações locais. As consultas não são executadas nem validadas nas plataformas de destino.</p></div>
     <div className="panel panel-pad toolbar studio-form"><label>IOC analisado<select className="field" aria-label="IOC analisado" value={selected} onChange={event => { setSelected(event.target.value); setGenerated(null); }} style={{ display: 'block', marginTop: 5 }}><option value="">Selecionar observação</option>{history.map((item, index) => <option key={`${item.indicator}-${item.timestamp}-${index}`} value={index}>{item.indicator} · {fmtDate(item.timestamp)}</option>)}</select></label><label>Plataforma<select className="field" value={platform} onChange={event => { setPlatform(event.target.value); setGenerated(null); }} style={{ display: 'block', marginTop: 5 }}><option value="kql">Defender XDR / Sentinel · KQL</option><option value="spl">Splunk · SPL</option><option value="yara">Google SecOps · YARA-L Search</option></select></label><label>Janela temporal<select className="field" value={days} onChange={event => { setDays(Number(event.target.value)); setGenerated(null); }} style={{ display: 'block', marginTop: 5 }}>{[1, 7, 30].map(value => <option key={value} value={value}>{value} dia(s)</option>)}</select></label>{platform === 'spl' && <label>Índice Splunk<input className="field" value={index} onChange={event => { setIndex(event.target.value); setGenerated(null); }} placeholder="Ex.: main" style={{ display: 'block', marginTop: 5 }} /></label>}<button className="btn btn-primary" disabled={!observation} onClick={generate}>Gerar busca</button></div>
     {error && <div className="panel panel-pad" role="alert" style={{ color: C.red }}>{error}</div>}
-    {generated && <section className="panel panel-pad"><div className="toolbar" style={{ justifyContent: 'space-between' }}><h2 className="panel-title">{generated.title}</h2><span className="badge muted">Hunting · {generated.model}</span></div><pre className="query-code"><code>{generated.query}</code></pre><p style={{ color: C.yellow, lineHeight: 1.5 }}>{generated.limitation}</p><div className="toolbar"><button className="btn" onClick={copy}>{copied ? 'Copiado' : 'Copiar consulta'}</button><button className="btn" onClick={exportQuery}>Exportar pacote JSON</button></div></section>}
+    {generated && <section className="panel panel-pad"><div className="toolbar" style={{ justifyContent: 'space-between' }}><h2 className="panel-title">{generated.title}</h2><span className="badge muted">Hunting · {generated.model}</span></div><pre className="query-code"><code>{generated.query}</code></pre><p style={{ color: C.yellow, lineHeight: 1.5 }}>{generated.limitation}</p><div className="toolbar"><button className="btn" onClick={copy}>{copied ? 'Copiado' : 'Copiar consulta'}</button><button className="btn" onClick={exportQuery}>Exportar pacote JSON</button><button className="btn" onClick={printPackage}>Imprimir pacote / PDF</button></div></section>}
     {observation && <section className="panel panel-pad"><h2 className="panel-title">Playbook de investigação e resposta</h2><p style={{ color: C.textMuted }}>Orientações derivadas do tipo de IOC e da cobertura observada. Contenção exige aprovação; nenhuma ação é executada aqui.</p><div className="stack">{playbook.map((step, index) => <details key={step.title} className="ai-evidence-section"><summary>{index + 1}. {step.title}</summary><div className="ai-evidence-items"><div className="ai-evidence-item"><strong>Objetivo</strong><p>{step.objective}</p></div><div className="ai-evidence-item"><strong>Pré-requisitos</strong><p>{step.prerequisite}</p></div><div className="ai-evidence-item"><strong>Evidências esperadas</strong><p>{step.expected}</p></div><div className="ai-evidence-item"><strong>Critério de conclusão</strong><p>{step.done}</p></div></div></details>)}</div></section>}
     {!history.length && <div className="panel empty">Investigue um IOC para habilitar consultas e playbooks.</div>}
   </div>;
