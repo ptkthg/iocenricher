@@ -13,6 +13,7 @@
 - O health público reduz detalhes de falhas a estados seguros e reutiliza a verificação por 60 segundos por instância.
 - MalwareBazaar usa Auth-Key no servidor, timeout e interpretação explícita da resposta; erro de autenticação ou protocolo não conta como hash ausente. O health usa um hash válido para verificar essa fonte.
 - URLhaus considera `no_results` uma consulta negativa; erros retornados no corpo da API agora são falhas de fonte, inclusive no health.
+- Diagnóstico da IA registra apenas categoria e código do erro do provedor, sem conteúdo de investigações ou credenciais, para apurar falhas de geração observadas no deploy público.
 - O motor de risco exige sinal forte de fonte de reputação antes de classificar um IOC como malicioso; score alto apenas por sinais contextuais permanece suspeito.
 
 ### Fase 2 — em andamento

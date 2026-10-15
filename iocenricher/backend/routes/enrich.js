@@ -132,7 +132,19 @@ router.post('/enrich', async (req, res) => {
       results.ai_analysis = ai;
       results.source_status.groq = 'ok';
     } catch (e) {
-      if (e.code !== 'SKIPPED') console.warn('Análise IA indisponível:', e.code || e.response?.status || 'upstream');
+      if (e.code !== 'SKIPPED') {
+        const providerError = e.response?.data?.error;
+        const providerType = typeof providerError?.type === 'string' ? providerError.type.slice(0, 60) : 'unknown';
+        const providerCode = typeof providerError?.code === 'string' ? providerError.code.slice(0, 60) : 'unknown';
+        const message = typeof providerError?.message === 'string' ? providerError.message.toLowerCase() : '';
+        const category = /decommissioned|deprecated/.test(message) ? 'model_deprecated'
+          : /model/.test(message) ? 'model_request'
+          : /temperature/.test(message) ? 'temperature_request'
+          : /token/.test(message) ? 'token_request'
+          : /json|format/.test(message) ? 'format_request'
+          : /permission|billing/.test(message) ? 'account_restriction' : 'other';
+        console.warn('Análise IA indisponível:', e.response?.status || e.code || 'upstream', providerType, providerCode, category);
+      }
       results.ai_analysis = null;
       results.source_status.groq = e.code === 'SKIPPED' ? 'skipped' : !process.env.GROQ_API_KEY ? 'not_configured' : 'unavailable';
     }
