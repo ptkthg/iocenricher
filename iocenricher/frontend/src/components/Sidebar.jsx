@@ -15,6 +15,7 @@ const sections = [
   ] },
   { title: 'FERRAMENTAS', items: [
     ['Phishing', 'shield', 'Análise de phishing'],
+    ['DetectionStudio', 'target', 'Detection Studio'],
     ['Reports', 'reports', 'Relatórios'],
   ] },
   { title: 'SISTEMA', items: [

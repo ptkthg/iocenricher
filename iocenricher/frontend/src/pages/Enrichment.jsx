@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, FONT, RISK_CFG, timeAgo, fmtDate, detectType } from "../lib/theme";
-import { enrichIndicator, getHistory, addToHistory } from "../lib/api";
+import { enrichIndicator, addToHistory } from "../lib/api";
+import { loadNote, saveNote as persistNote } from '../lib/investigationStore';
+import AiEvidenceCard from '../components/AiEvidenceCard';
+import IocDiff from '../components/IocDiff';
 import Icon from "../components/Icon";
 import { Card, Badge, Button, Input, PageHeader } from "../components/UI";
 import RelationshipPreview from "../components/RelationshipPreview";
@@ -205,100 +208,6 @@ function MitreCard({ techniques }) {
       <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(59,130,246,0.06)', border: `1px solid ${C.accent}22`, borderRadius: 8, fontSize: 12, color: C.textMuted }}>
         ℹ Techniques are mapped based on threat intelligence signals from OSINT sources. Click any technique to view full details on MITRE ATT&CK.
       </div>
-    </Card>
-  );
-}
-
-const FP_COLORS = {
-  LOW:    { color: '#10b981', bg: 'rgba(16,185,129,0.1)', label: 'Low' },
-  MEDIUM: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Medium' },
-  HIGH:   { color: '#f87171', bg: 'rgba(248,113,113,0.1)', label: 'High' },
-};
-
-function AiAnalysisCard({ analysis, loading }) {
-  if (!analysis && !loading) return null;
-
-  const fp = FP_COLORS[analysis?.false_positive_likelihood] || FP_COLORS.MEDIUM;
-
-  return (
-    <Card>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(167,139,250,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="18" cy="18" r="4"/><path d="M18 16v2l1 1"/>
-          </svg>
-        </div>
-        <div>
-          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: C.text }}>AI Analysis</h3>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: 0, marginTop: 2 }}>Powered by Groq · Llama 3.3 70B</p>
-        </div>
-        {analysis && (
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20, background: fp.bg, border: `1px solid ${fp.color}44` }}>
-            <span style={{ fontSize: 10, color: fp.color, fontWeight: 600 }}>FP Risk: {fp.label}</span>
-          </div>
-        )}
-      </div>
-
-      {!analysis ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: C.textMuted, fontSize: 13 }}>
-          <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${C.purple}44`, borderTopColor: C.purple, animation: 'spin 0.8s linear infinite' }} />
-          Generating AI analysis...
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Summary */}
-          {analysis.summary && (
-            <div style={{ padding: '14px 16px', background: 'rgba(167,139,250,0.06)', border: `1px solid rgba(167,139,250,0.2)`, borderRadius: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.purple, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>Summary</div>
-              <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.7 }}>{analysis.summary}</p>
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            {/* Threat Actor Profile */}
-            {analysis.threat_actor_profile && (
-              <div style={{ padding: '12px 14px', background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>Threat Profile</div>
-                <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.6 }}>{analysis.threat_actor_profile}</p>
-              </div>
-            )}
-
-            {/* False Positive */}
-            {analysis.false_positive_reason && (
-              <div style={{ padding: '12px 14px', background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>False Positive Assessment</div>
-                <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.6 }}>{analysis.false_positive_reason}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Context */}
-          {analysis.context && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 }}>Technical Context</div>
-              <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.7 }}>{analysis.context}</p>
-            </div>
-          )}
-
-          {/* Next Steps */}
-          {analysis.next_steps?.length > 0 && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>Recommended Actions</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {analysis.next_steps.map((step, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: C.purple, flexShrink: 0, marginTop: 1 }}>
-                      {i + 1}
-                    </span>
-                    <span style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{step}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </Card>
   );
 }
@@ -1057,28 +966,24 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
   const [addingTag, setAddingTag] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
+  const [noteError, setNoteError] = useState('');
   const [threatMatch, setThreatMatch] = useState(null);
   const [autoAnalyze, setAutoAnalyze] = useState(false);
+  useEffect(() => { if (currentResult?.indicator) setInput(currentResult.indicator); }, [currentResult?.indicator]);
 
   // Load saved note when indicator changes
   useEffect(() => {
-    if (currentResult?.indicator) {
-      try {
-        const saved = JSON.parse(localStorage.getItem(`ioc_note_${currentResult.indicator}`) || "{}");
-        setNotes(saved.notes || "");
-        setTags(saved.tags || []);
-      } catch {
-        setNotes(""); setTags([]);
-      }
-    }
+    let live = true;
+    if (currentResult?.indicator) loadNote(currentResult.indicator).then(saved => {
+      if (live) { setNotes(saved.notes || ''); setTags(saved.tags || []); setNoteError(''); }
+    });
+    return () => { live = false; };
   }, [currentResult?.indicator]);
 
-  function saveNote() {
+  async function saveNote() {
     if (!currentResult?.indicator) return;
-    const data = { notes, tags, savedAt: new Date().toISOString() };
-    localStorage.setItem(`ioc_note_${currentResult.indicator}`, JSON.stringify(data));
-    setNoteSaved(true);
-    setTimeout(() => setNoteSaved(false), 2000);
+    try { await persistNote(currentResult.indicator, notes, tags); setNoteError(''); setNoteSaved(true); setTimeout(() => setNoteSaved(false), 2000); }
+    catch { setNoteError('Não foi possível salvar a nota no navegador.'); }
   }
 
   function addTag() {
@@ -1114,6 +1019,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
     setThreatMatch(null);
     try {
       const data = await enrichIndicator(input.trim());
+      window.history.replaceState(null, '', '/investigar');
       setCurrentResult(data);
       const updated = await addToHistory(data);
       setHistory(updated);
@@ -1348,7 +1254,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
 
   return (
     <><h1 className="page-title">Análise individual de IOC</h1><p className="page-subtitle">Consulta OSINT, classificação, técnicas e contexto do indicador.</p>
-    {showResult && <nav className="toolbar" style={{borderBottom:`1px solid ${C.border}`,paddingBottom:8,marginBottom:12}} aria-label="Seções da análise">{[['overview','Visão geral'],['sources','Fontes'],['mitre','MITRE ATT&CK'],['relationships','Relacionamentos'],['ai','Análise por IA']].map(([id,label])=><a key={id} className="btn" href={`#${id}`}>{label}</a>)}</nav>}
+    {showResult && <nav className="toolbar" style={{borderBottom:`1px solid ${C.border}`,paddingBottom:8,marginBottom:12}} aria-label="Seções da análise">{[['overview','Visão geral'],['sources','Fontes'],['mitre','MITRE ATT&CK'],['relationships','Relacionamentos'],['diff','Comparação'],['ai','Análise por IA']].map(([id,label])=><a key={id} className="btn" href={`#${id}`}>{label}</a>)}</nav>}
     <div className="main-with-sidebar" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 12, alignItems: "start" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
 
@@ -1676,10 +1582,12 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
           <div className="fade-in"><TyposquattingCard data={typo} /></div>
         )}
 
+        {showResult && <IocDiff current={result} history={history} />}
+
         {/* AI Analysis */}
         {showResult && (
           <div className="fade-in">
-            <div id="ai"><AiAnalysisCard analysis={result.ai_analysis} loading={loading} /></div>
+            <AiEvidenceCard analysis={result.ai_analysis} status={result.source_status?.groq} />
           </div>
         )}
 
@@ -1765,6 +1673,7 @@ export default function Enrichment({ history, setHistory, currentResult, setCurr
           </div>
 
           <p style={{fontSize:11,color:C.textDim}}>Notas e tags ficam somente neste navegador.</p>
+          {noteError && <p role="alert" style={{ color: C.red }}>{noteError}</p>}
 
           <Button
             onClick={saveNote}

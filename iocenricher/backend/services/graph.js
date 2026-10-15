@@ -54,10 +54,26 @@ function addNode(nodes, id, label, type, meta = {}) {
   }
 }
 
-function addEdge(edges, source, target, label) {
+function addEdge(edges, source, target, label, originOverride) {
   const id = `${source}--${target}`;
   if (!edges.find(e => e.id === id)) {
-    edges.push({ id, source, target, label });
+    const sourceType = source.split('::')[0];
+    const provenance = {
+      'belongs to': ['IPinfo', 'org', 'MEDIUM'],
+      origin: ['IPinfo', 'country', 'LOW'],
+      'part of': ['VirusTotal', 'network', 'MEDIUM'],
+      'detected by': ['VirusTotal', 'malicious', 'HIGH'],
+      'C2 server for': ['Feodo Tracker', 'malware_family', 'HIGH'],
+      'listens on': ['Feodo Tracker', 'dst_port', 'HIGH'],
+      'registered with': ['VirusTotal', 'registrar', 'MEDIUM'],
+      distributes: ['URLhaus', 'threat', 'MEDIUM'],
+      'tagged as': sourceType === 'hash' ? ['MalwareBazaar', 'tags', 'MEDIUM'] : ['URLhaus', 'tags', 'MEDIUM'],
+      'identified as': ['MalwareBazaar', 'signature', 'MEDIUM'],
+      'known as': ['VirusTotal', 'name', 'MEDIUM'],
+      'hosted on': ['URL fornecida', 'hostname', 'HIGH'],
+      delivers: ['URLhaus', 'threat', 'MEDIUM'],
+    }[label] || ['Mapeamento MITRE por tags OSINT', 'tags', 'LOW'];
+    edges.push({ id, source, target, label, evidence: { source: originOverride || provenance[0], field: provenance[1], observed_at: new Date().toISOString(), confidence: provenance[2] } });
   }
 }
 
@@ -68,7 +84,7 @@ async function buildGraph(indicator) {
   const sources = {};
 
   const mainId = uid(type, indicator);
-  addNode(nodes, mainId, indicator, type, { isMain: true, score: 0, risk: 'INCONCLUSIVO' });
+  addNode(nodes, mainId, indicator, type, { isMain: true, score: null, risk: 'INCONCLUSIVO' });
 
   try {
     if (type === 'ip') {
@@ -118,7 +134,7 @@ async function buildGraph(indicator) {
         if (feed.country) {
           const cId = uid('country', feed.country);
           addNode(nodes, cId, feed.country, 'country');
-          addEdge(edges, mainId, cId, 'origin');
+        addEdge(edges, mainId, cId, 'origin', 'Feodo Tracker');
         }
       }
     }
@@ -246,7 +262,7 @@ async function buildGraph(indicator) {
   }
 
   // Always return something valid
-  return { nodes, edges, indicator, type };
+  return { nodes, edges, indicator, type, collected_at: new Date().toISOString() };
 }
 
 module.exports = { buildGraph };

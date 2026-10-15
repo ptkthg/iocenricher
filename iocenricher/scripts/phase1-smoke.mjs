@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 const base = 'http://127.0.0.1:9229';
 const tab = await (await fetch(`${base}/json/new?http://127.0.0.1:5174/`, { method: 'PUT' })).json();
 const ws = new WebSocket(tab.webSocketDebuggerUrl);
@@ -43,6 +44,16 @@ try {
     if (result?.indicator === '00000000000000000000000000000000') break;
   }
   if (result?.risk?.score !== null || result?.risk?.level !== 'INCONCLUSIVO' || result?.query_status !== 'error') throw new Error(`Falha de fonte classificada incorretamente: ${JSON.stringify(result?.risk)}`);
+  await send('Page.navigate', { url: 'http://127.0.0.1:5174/historico' });
+  await pause(650);
+  await evaluate(`[...document.querySelectorAll('tr')].find(row=>row.textContent.includes('00000000000000000000000000000000'))?.querySelector('button')?.click()`);
+  await pause(250);
+  const snapshotURL = await evaluate(`location.pathname+location.search`);
+  if (!snapshotURL.includes('at=') || !snapshotURL.includes('00000000000000000000000000000000')) throw new Error(`Snapshot não abriu: ${snapshotURL}`);
+  await send('Page.reload');
+  await pause(850);
+  const restored = await evaluate(`document.body.textContent.includes('00000000000000000000000000000000')&&location.search.includes('at=')`);
+  if (!restored) throw new Error('Snapshot não persistiu após atualização da página');
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await pause(250);
   const mobile = await evaluate(`({viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth})`);
@@ -50,7 +61,26 @@ try {
     const overflow = await evaluate(`[...document.querySelectorAll('*')].map(e=>({tag:e.tagName,cls:String(e.className?.baseVal||e.className||''),text:e.textContent?.slice(0,45),parent:String(e.parentElement?.className||''),right:Math.round(e.getBoundingClientRect().right),width:Math.round(e.getBoundingClientRect().width)})).filter(x=>x.right>390).slice(0,16)`);
     throw new Error(`Rolagem horizontal mobile: ${JSON.stringify({mobile,overflow})}`);
   }
-  console.log(JSON.stringify({ initial, invalidIOC: 'rejected', offlineResult: { risk: result.risk.level, score: result.risk.score, query: result.query_status }, mobile }));
+  await send('Page.navigate', { url: 'http://127.0.0.1:5174/detection-studio' });
+  await pause(700);
+  await evaluate(`(()=>{const select=document.querySelector('select[aria-label="IOC analisado"]');const option=[...select.options].find(item=>item.textContent.includes('00000000000000000000000000000000'));if(!option)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,option.value);select.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
+  await pause(200);
+  await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Gerar busca'))?.click()`);
+  await pause(250);
+  const studio = await evaluate(`({query:document.querySelector('.query-code')?.textContent.includes('DeviceFileEvents'),viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth})`);
+  if (!studio.query || studio.content > studio.viewport) {
+    const overflow = await evaluate(`[...document.querySelectorAll('*')].map(e=>({tag:e.tagName,cls:String(e.className?.baseVal||e.className||''),right:Math.round(e.getBoundingClientRect().right),width:Math.round(e.getBoundingClientRect().width)})).filter(x=>x.right>390).slice(0,15)`);
+    throw new Error(`Detection Studio falhou: ${JSON.stringify({ studio, overflow })}`);
+  }
+  const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+  await writeFile('D:/iocenricher/detection-mobile-qa.png', Buffer.from(screenshot.data, 'base64'));
+  await send('Page.navigate', { url: 'http://127.0.0.1:5174/historico' });
+  await pause(650);
+  await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Casos locais'))?.click()`);
+  await pause(200);
+  const cases = await evaluate(`({visible:document.body.textContent.includes('Casos investigativos'),viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth})`);
+  if (!cases.visible || cases.content > cases.viewport) throw new Error(`Casos mobile falharam: ${JSON.stringify(cases)}`);
+  console.log(JSON.stringify({ initial, invalidIOC: 'rejected', offlineResult: { risk: result.risk.level, score: result.risk.score, query: result.query_status }, mobile, studio, cases }));
 } finally {
   await send('Target.closeTarget', { targetId: tab.id });
   ws.close();

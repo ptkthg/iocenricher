@@ -285,17 +285,27 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
 
   const selectedNode = selected ? nodes.find(n => n.id === selected) : null;
 
+  function downloadGraph(format) {
+    if (!graphData) return;
+    const content = format === 'svg' ? svgRef.current?.outerHTML : JSON.stringify(graphData, null, 2);
+    if (!content) return;
+    const url = URL.createObjectURL(new Blob([content], { type: format === 'svg' ? 'image/svg+xml' : 'application/json' }));
+    const link = document.createElement('a'); link.href = url; link.download = `ioc-grafo-${Date.now()}.${format}`; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   // Examples
   const examples = ["185.220.101.1", "8.8.8.8", "emotet.de"];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+      <div className="toolbar" style={{ alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Investigation Graph</h1>
           <p style={{ fontSize: 13, color: C.textMuted, margin: "4px 0 0" }}>Visual relationship map between indicators, infrastructure, malware families and ATT&CK techniques.</p>
         </div>
+        {graphData && <div className="toolbar"><button className="btn" onClick={() => downloadGraph('json')}>Exportar JSON</button><button className="btn" onClick={() => downloadGraph('svg')}>Exportar imagem SVG</button></div>}
       </div>
 
       {/* Search */}
@@ -341,7 +351,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
 
       {/* Graph + Sidebar */}
       {(graphData || loading) && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16, alignItems: "start" }}>
+        <div className="graph-layout" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 16, alignItems: "start" }}>
           {/* SVG Canvas */}
           <Card style={{ padding: 0, overflow: "hidden", position: "relative" }}>
             {/* Controls */}
@@ -557,7 +567,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
                 <Icon name="cpu" size={16} color={C.purple} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>AI Graph Analysis</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Sugestões assistidas para o grafo</div>
                 <div style={{ fontSize: 11, color: C.textMuted }}>Powered by Groq · Llama 3.3 70B</div>
               </div>
             </div>
@@ -619,12 +629,12 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
               {/* Recommendations */}
               {aiSummary.recommendations?.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10 }}>Recommended Actions</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10 }}>Próximas verificações sugeridas pela IA</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {aiSummary.recommendations.map((r, i) => (
                       <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                         <span style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: C.purple, flexShrink: 0, marginTop: 1 }}>{i + 1}</span>
-                        <span style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{r}</span>
+                        <span style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{r.text}<small style={{ display: 'block', color: C.textMuted }}>Arestas relacionadas: {r.edge_ids?.join(', ') || 'nenhuma'}</small></span>
                       </div>
                     ))}
                   </div>
@@ -726,6 +736,7 @@ function NodeDetail({ node, edges, nodes }) {
                       {other.label}
                     </div>
                     <div style={{ fontSize: 10, color: C.textDim }}>{edge.label}</div>
+                    {edge.evidence && <div style={{ fontSize: 10, color: C.textMuted, marginTop: 3, lineHeight: 1.4 }}>{edge.evidence.source} · {edge.evidence.field} · {edge.evidence.confidence}<br />Observado em {edge.evidence.observed_at}</div>}
                   </div>
                   <span style={{ fontSize: 10, color: direction === "out" ? C.accentLight : C.textMuted, flexShrink: 0 }}>
                     {direction === "out" ? "→" : "←"}

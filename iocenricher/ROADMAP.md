@@ -15,10 +15,10 @@ Branch de desenvolvimento: `roadmap/phase1-public-access`. Nenhum push ou deploy
 | Fase | Estado | Evidência e pendências |
 | --- | --- | --- |
 | 1. Acesso público, segurança e estabilidade | Parcialmente concluída | Login removido; consultas individuais e em lote distinguem falha de baixo risco; validação, SSRF, cache, concorrência e limites implementados. Limite distribuído preparado, mas sem Upstash configurado no ambiente. |
-| 2. Arquitetura e UX | Em execução | Navegação agrupada, histórico no IndexedDB com migração, relatórios baseados em dados reais, Preferências sem controles fictícios. Refatoração de componentes extensos, notas/casos, PDF próprio, acessibilidade e filtros persistentes ainda pendentes. |
-| 3. Motor de inteligência | Aguardando fase 2 | |
-| 4. Casos e correlação | Aguardando fase 3 | |
-| 5. Detection Engineering | Aguardando fase 4 | |
+| 2. Arquitetura e UX | Parcialmente concluída | Navegação agrupada, histórico/notas/casos no IndexedDB, migração e backup versionado, relatórios com dados reais. Ainda faltam refatoração completa dos componentes extensos, retenção, filtros persistentes, tradução consistente, auditoria ampla de acessibilidade e PDF com pacote integral. |
+| 3. Motor de inteligência | Parcialmente concluída | Evidências e origem visíveis na análise por IA; comparação entre snapshots reais. Passport existe de forma distribuída na página de IOC, mas falta um modelo unificado e maior cobertura de infraestrutura/certificados. Integração Groq sem chave local para teste ao vivo. |
+| 4. Casos e correlação | Parcialmente concluída | Caderno local de casos, múltiplos IOCs, correlação direta de URL/domínio/IP por dados salvos, arestas com proveniência e exportação JSON/SVG do grafo individual. Falta grafo conjunto do caso, filtros de aresta, expansão controlada e correlação mais ampla de certificados/amostras. |
+| 5. Detection Engineering | Parcialmente concluída | Hunting KQL/SPL/YARA-L Search, playbook contextual e pacote JSON operacional. Falta validação executada nas plataformas de destino, regras persistentes, integração completa de casos/grafo ao PDF e revisão visual do PDF técnico. |
 
 ## Limitações externas
 
@@ -32,4 +32,5 @@ Branch de desenvolvimento: `roadmap/phase1-public-access`. Nenhum push ou deploy
 - Frontend: `npm run build` — aprovado.
 - Browser: `node scripts/phase1-smoke.mjs` — acesso sem login, rotas diretas, IOC inválido, falha de fontes e viewport mobile aprovados.
 - Browser isolado: `node scripts/storage-smoke.mjs` — migração de 2 registros legados, múltiplas observações, deduplicação e exclusão seletiva aprovadas.
+- Após o checkpoint inicial: `npm test` no backend — 11 testes; `npm test` no frontend — 4 testes; `node scripts/storage-smoke.mjs` cobre também notas, casos e backup; smoke público cobre Detection Studio e caderno de casos em 390 px, além de restaurar um snapshot ao atualizar a página. Build do frontend aprovado.
 - Não houve teste de enriquecimento com chaves locais porque `backend/.env` não está presente. Nenhum push ou deploy neste roadmap.
