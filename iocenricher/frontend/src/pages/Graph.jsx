@@ -1,32 +1,34 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { C, FONT } from "../lib/theme";
+import useForceSimulation from '../hooks/useForceSimulation';
 import Icon from "../components/Icon";
 import { Card, Button, Input, Badge } from "../components/UI";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
+const EMPTY = [];
 
 // ─── Node config by type ─────────────────────────────────────────────────────
 const NODE_CFG = {
   ip:        { color: "#3b82f6", bg: "rgba(59,130,246,0.15)",  size: 22, label: "IP" },
-  domain:    { color: "#a78bfa", bg: "rgba(167,139,250,0.15)", size: 20, label: "Domain" },
+  domain:    { color: "#a78bfa", bg: "rgba(167,139,250,0.15)", size: 20, label: "Domínio" },
   hash:      { color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  size: 20, label: "Hash" },
   url:       { color: "#10b981", bg: "rgba(16,185,129,0.15)",  size: 20, label: "URL" },
   asn:       { color: "#60a5fa", bg: "rgba(96,165,250,0.15)",  size: 17, label: "ASN" },
   malware:   { color: "#f87171", bg: "rgba(248,113,113,0.15)", size: 19, label: "Malware" },
   mitre:     { color: "#fb923c", bg: "rgba(251,146,60,0.15)",  size: 16, label: "MITRE" },
-  country:   { color: "#94a3b8", bg: "rgba(148,163,184,0.15)", size: 15, label: "Country" },
-  threat:    { color: "#f87171", bg: "rgba(248,113,113,0.12)", size: 16, label: "Threat" },
-  subnet:    { color: "#60a5fa", bg: "rgba(96,165,250,0.1)",   size: 14, label: "Subnet" },
+  country:   { color: "#94a3b8", bg: "rgba(148,163,184,0.15)", size: 15, label: "País" },
+  threat:    { color: "#f87171", bg: "rgba(248,113,113,0.12)", size: 16, label: "Ameaça" },
+  subnet:    { color: "#60a5fa", bg: "rgba(96,165,250,0.1)",   size: 14, label: "Sub-rede" },
   tag:       { color: "#8896ad", bg: "rgba(136,150,173,0.12)", size: 13, label: "Tag" },
-  detection: { color: "#f87171", bg: "rgba(248,113,113,0.12)", size: 16, label: "Detection" },
-  registrar: { color: "#94a3b8", bg: "rgba(148,163,184,0.12)", size: 14, label: "Registrar" },
-  port:      { color: "#facc15", bg: "rgba(250,204,21,0.1)",   size: 13, label: "Port" },
-  file:      { color: "#f59e0b", bg: "rgba(245,158,11,0.1)",   size: 14, label: "File" },
+  detection: { color: "#f87171", bg: "rgba(248,113,113,0.12)", size: 16, label: "Detecção" },
+  registrar: { color: "#94a3b8", bg: "rgba(148,163,184,0.12)", size: 14, label: "Registrador" },
+  port:      { color: "#facc15", bg: "rgba(250,204,21,0.1)",   size: 13, label: "Porta" },
+  file:      { color: "#f59e0b", bg: "rgba(245,158,11,0.1)",   size: 14, label: "Arquivo" },
 };
 
 const RISK_COLORS = {
   "CRÍTICO": "#f87171",
-  "ALTO":    "#f59e0b",
+  "ALTO":    "#f0525e",
   "MÉDIO":   "#facc15",
   "BAIXO":   "#10b981",
 };
@@ -43,133 +45,6 @@ function getNodeSize(node) {
 }
 
 // ─── Force simulation ─────────────────────────────────────────────────────────
-function useForceSimulation(nodes, edges, width, height) {
-  const simRef = useRef({ nodes: [], edges: [], running: false, raf: null });
-  const [positions, setPositions] = useState({});
-
-  useEffect(() => {
-    if (!nodes.length) return;
-
-    // Init positions radially
-    const cx = width / 2, cy = height / 2;
-    const mainNode = nodes.find(n => n.isMain) || nodes[0];
-    const others = nodes.filter(n => !n.isMain);
-    const angleStep = (2 * Math.PI) / Math.max(others.length, 1);
-
-    const simNodes = nodes.map((n, i) => {
-      const isMain = n.isMain;
-      const idx = others.indexOf(n);
-      const angle = idx >= 0 ? idx * angleStep : 0;
-      const radius = isMain ? 0 : (80 + getNodeSize(n) * 6);
-      return {
-        id: n.id,
-        x: cx + (isMain ? 0 : Math.cos(angle) * radius * (1 + Math.floor(idx / 8) * 0.6)),
-        y: cy + (isMain ? 0 : Math.sin(angle) * radius * (1 + Math.floor(idx / 8) * 0.6)),
-        vx: 0, vy: 0,
-        isMain,
-        size: getNodeSize(n),
-        pinned: false,
-      };
-    });
-
-    const edgeMap = edges.map(e => ({
-      source: e.source,
-      target: e.target,
-    }));
-
-    simRef.current = { nodes: simNodes, edges: edgeMap, running: true, raf: null };
-
-    let iter = 0;
-    function tick() {
-      const sim = simRef.current;
-      if (!sim.running) return;
-      const sn = sim.nodes;
-      const alpha = Math.max(0.01, 0.6 * Math.pow(0.96, iter));
-      iter++;
-
-      // Repulsion
-      for (let i = 0; i < sn.length; i++) {
-        for (let j = i + 1; j < sn.length; j++) {
-          const dx = sn[j].x - sn[i].x;
-          const dy = sn[j].y - sn[i].y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const minDist = (sn[i].size + sn[j].size) * 3.5;
-          if (dist < minDist * 2.5) {
-            const force = (alpha * 280) / (dist * dist);
-            const fx = (dx / dist) * force;
-            const fy = (dy / dist) * force;
-            if (!sn[i].pinned) { sn[i].vx -= fx; sn[i].vy -= fy; }
-            if (!sn[j].pinned) { sn[j].vx += fx; sn[j].vy += fy; }
-          }
-        }
-      }
-
-      // Spring attraction along edges
-      for (const e of sim.edges) {
-        const a = sn.find(n => n.id === e.source);
-        const b = sn.find(n => n.id === e.target);
-        if (!a || !b) continue;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const restLen = (a.size + b.size) * 4.5;
-        const force = (dist - restLen) * alpha * 0.12;
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-        if (!a.pinned) { a.vx += fx; a.vy += fy; }
-        if (!b.pinned) { b.vx -= fx; b.vy -= fy; }
-      }
-
-      // Center gravity
-      for (const n of sn) {
-        if (n.pinned) continue;
-        n.vx += (cx - n.x) * alpha * 0.012;
-        n.vy += (cy - n.y) * alpha * 0.012;
-      }
-
-      // Integrate + damping
-      const pos = {};
-      for (const n of sn) {
-        if (!n.pinned) {
-          n.vx *= 0.72;
-          n.vy *= 0.72;
-          n.x += n.vx;
-          n.y += n.vy;
-          // Bounds
-          n.x = Math.max(40, Math.min(width - 40, n.x));
-          n.y = Math.max(40, Math.min(height - 40, n.y));
-        }
-        pos[n.id] = { x: n.x, y: n.y };
-      }
-
-      setPositions({ ...pos });
-      if (iter < 280) {
-        sim.raf = requestAnimationFrame(tick);
-      }
-    }
-
-    tick();
-    return () => {
-      simRef.current.running = false;
-      if (simRef.current.raf) cancelAnimationFrame(simRef.current.raf);
-    };
-  }, [nodes.length, width, height]);
-
-  const pinNode = useCallback((id, x, y) => {
-    const n = simRef.current.nodes.find(n => n.id === id);
-    if (n) { n.x = x; n.y = y; n.pinned = true; n.vx = 0; n.vy = 0; }
-    setPositions(p => ({ ...p, [id]: { x, y } }));
-  }, []);
-
-  const unpinNode = useCallback((id) => {
-    const n = simRef.current.nodes.find(n => n.id === id);
-    if (n) n.pinned = false;
-  }, []);
-
-  return { positions, pinNode, unpinNode };
-}
-
-// ─── Main Graph component ─────────────────────────────────────────────────────
 export default function Graph({ initialIndicator, onIndicatorConsumed }) {
   const [indicator, setIndicator] = useState("");
   const [loading, setLoading] = useState(false);
@@ -186,10 +61,10 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
   const svgRef = useRef(null);
 
   const W = 900, H = 600;
-  const nodes = graphData?.nodes || [];
-  const edges = graphData?.edges || [];
+  const nodes = graphData?.nodes || EMPTY;
+  const edges = graphData?.edges || EMPTY;
 
-  const { positions, pinNode, unpinNode } = useForceSimulation(nodes, edges, W, H);
+  const { positions, pinNode, unpinNode } = useForceSimulation(nodes, edges, W, H, getNodeSize);
 
   useEffect(() => {
     if (initialIndicator) {
@@ -210,7 +85,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
     setAiSummary(null);
     try {
       const res = await fetch(`${API_BASE}/graph?indicator=${encodeURIComponent(value.trim())}`);
-      if (!res.ok) throw new Error("Graph request failed");
+      if (!res.ok) throw new Error('Não foi possível gerar o grafo. Verifique o indicador e tente novamente.');
       if (!(res.headers.get("content-type") || "").includes("application/json"))
         throw new Error("Backend indisponível");
       const data = await res.json();
@@ -233,7 +108,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ graphData })
       });
-      if (!res.ok) throw new Error('AI summary failed');
+      if (!res.ok) throw new Error('Não foi possível gerar o resumo assistido.');
       if (!(res.headers.get("content-type") || "").includes("application/json"))
         throw new Error("Backend indisponível");
       const data = await res.json();
@@ -302,22 +177,23 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
       {/* Header */}
       <div className="toolbar" style={{ alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Investigation Graph</h1>
-          <p style={{ fontSize: 13, color: C.textMuted, margin: "4px 0 0" }}>Visual relationship map between indicators, infrastructure, malware families and ATT&CK techniques.</p>
+          <h1 className="page-title">Grafo de relações</h1>
+          <p className="page-subtitle">Relações verificáveis entre o indicador, infraestrutura, malware e técnicas ATT&CK.</p>
         </div>
         {graphData && <div className="toolbar"><button className="btn" onClick={() => downloadGraph('json')}>Exportar JSON</button><button className="btn" onClick={() => downloadGraph('svg')}>Exportar imagem SVG</button></div>}
       </div>
 
       {/* Search */}
       <Card style={{ padding: "16px 20px" }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div style={{ position: "relative", flex: 1 }}>
+        <div className="graph-search" style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
             <Icon name="search" size={15} color={C.textDim} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
             <Input
+              aria-label="Indicador para gerar o grafo"
               value={indicator}
               onChange={e => setIndicator(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleInvestigate()}
-              placeholder="Enter IP, domain, hash or URL to investigate..."
+              placeholder="Informe IP, domínio, hash ou URL..."
               style={{ paddingLeft: 40, fontSize: 14, height: 44 }}
             />
           </div>
@@ -329,11 +205,11 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
               : <Icon name="target" size={15} color="#fff" />}
             style={{ height: 44, padding: "0 24px", fontSize: 14 }}
           >
-            {loading ? "Investigating..." : "Investigate"}
+            {loading ? "Investigando..." : "Investigar"}
           </Button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, color: C.textMuted }}>Try:</span>
+          <span style={{ fontSize: 12, color: C.textMuted }}>Exemplos:</span>
           {examples.map(ex => (
             <button key={ex} onClick={() => { setIndicator(ex); }} style={{
               padding: "4px 12px", background: C.bgInput, border: `1px solid ${C.border}`,
@@ -344,7 +220,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
       </Card>
 
       {error && (
-        <div style={{ padding: "12px 16px", background: C.redBg, border: `1px solid ${C.red}44`, borderRadius: 10, color: C.red, fontSize: 13 }}>
+        <div role="alert" style={{ padding: "12px 16px", background: C.redBg, border: `1px solid ${C.red}44`, borderRadius: 10, color: C.red, fontSize: 13 }}>
           ⚠ {error}
         </div>
       )}
@@ -357,11 +233,11 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
             {/* Controls */}
             <div style={{ position: "absolute", top: 12, right: 12, zIndex: 10, display: "flex", flexDirection: "column", gap: 6 }}>
               {[
-                { icon: "plus", action: () => setZoom(z => Math.min(3, z * 1.2)) },
-                { icon: "minus", action: () => setZoom(z => Math.max(0.3, z * 0.8)) },
-                { icon: "refresh", action: () => { setZoom(1); setPan({ x: 0, y: 0 }); } },
-              ].map(({ icon, action }) => (
-                <button key={icon} onClick={action} style={{
+                { icon: "plus", label: 'Aumentar zoom', action: () => setZoom(z => Math.min(3, z * 1.2)) },
+                { icon: "minus", label: 'Diminuir zoom', action: () => setZoom(z => Math.max(0.3, z * 0.8)) },
+                { icon: "refresh", label: 'Restaurar visualização', action: () => { setZoom(1); setPan({ x: 0, y: 0 }); } },
+              ].map(({ icon, label, action }) => (
+                <button key={icon} type="button" aria-label={label} onClick={action} style={{
                   width: 32, height: 32, borderRadius: 8, background: C.bgCard,
                   border: `1px solid ${C.border}`, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center"
@@ -374,12 +250,14 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
             {/* Node count badge */}
             {graphData && (
               <div style={{ position: "absolute", top: 12, left: 12, zIndex: 10, display: "flex", gap: 6 }}>
-                <Badge color={C.accentLight} bg="rgba(59,130,246,0.12)">{nodes.length} nodes</Badge>
-                <Badge color={C.textMuted} bg="rgba(136,150,173,0.1)">{edges.length} edges</Badge>
+                <Badge color={C.accentLight} bg="rgba(59,130,246,0.12)">{nodes.length} nós</Badge>
+                <Badge color={C.textMuted} bg="rgba(136,150,173,0.1)">{edges.length} relações</Badge>
               </div>
             )}
 
             <svg
+              role="img"
+              aria-label={`Grafo com ${nodes.length} nós e ${edges.length} relações. Use Tab para selecionar nós.`}
               ref={svgRef}
               width="100%"
               height={H}
@@ -403,7 +281,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
 
               {loading && (
                 <text x={W / 2} y={H / 2} textAnchor="middle" fill={C.textMuted} fontSize="14" fontFamily={FONT}>
-                  Building investigation graph...
+                  Montando o grafo da investigação...
                 </text>
               )}
 
@@ -452,9 +330,13 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
                   const isSelected = selected === node.id;
                   return (
                     <g key={node.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${node.isMain ? 'Indicador principal: ' : ''}${node.fullLabel || node.label}. ${NODE_CFG[node.type]?.label || node.type}`}
                       transform={`translate(${pos.x},${pos.y})`}
                       style={{ cursor: "pointer" }}
                       onMouseDown={e => handleNodeMouseDown(e, node.id)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(node.id); } }}
                     >
                       {/* Glow ring for selected */}
                       {isSelected && (
@@ -517,7 +399,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
                 </div>
               ))}
               <div style={{ marginLeft: "auto", fontSize: 11, color: C.textDim }}>
-                Scroll to zoom · Drag to pan · Click node for details
+                Role para ampliar · Arraste para mover · Tab e Enter para selecionar um nó
               </div>
             </div>
           </Card>
@@ -531,21 +413,21 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
                 <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(59,130,246,0.08)", border: `1px solid ${C.accent}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
                   <Icon name="target" size={22} color={C.accent} />
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>Click a node</div>
-                <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>Select any node in the graph to see details, connections and metadata.</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>Selecione um nó</div>
+                <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>Selecione um nó para consultar seus detalhes, relações e origem.</div>
               </Card>
             )}
 
             {/* Graph stats */}
             {graphData && (
               <Card>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 12 }}>Graph Summary</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 12 }}>Resumo do grafo</div>
                 {[
-                  ["Total nodes", nodes.length],
-                  ["Connections", edges.length],
-                  ["Malware nodes", nodes.filter(n => n.type === "malware").length],
-                  ["MITRE techniques", nodes.filter(n => n.type === "mitre").length],
-                  ["Infrastructure", nodes.filter(n => ["asn","subnet","country"].includes(n.type)).length],
+                  ["Total de nós", nodes.length],
+                  ["Relações", edges.length],
+                  ["Nós de malware", nodes.filter(n => n.type === "malware").length],
+                  ["Técnicas MITRE", nodes.filter(n => n.type === "mitre").length],
+                  ["Infraestrutura", nodes.filter(n => ["asn","subnet","country"].includes(n.type)).length],
                 ].map(([label, val]) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.borderSubtle}`, fontSize: 13 }}>
                     <span style={{ color: C.textMuted }}>{label}</span>
@@ -568,7 +450,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
               </div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Sugestões assistidas para o grafo</div>
-                <div style={{ fontSize: 11, color: C.textMuted }}>Powered by Groq · Llama 3.3 70B</div>
+                <div style={{ fontSize: 11, color: C.textMuted }}>Assistente Groq · evidências do grafo</div>
               </div>
             </div>
             <Button
@@ -580,7 +462,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
                 : <Icon name="cpu" size={13} color={C.purple} />}
               style={{ fontSize: 12, padding: "7px 16px", borderColor: C.purple + "55", color: C.purple }}
             >
-              {aiLoading ? "Analyzing graph..." : aiSummary ? "Regenerate" : "Generate AI Summary"}
+              {aiLoading ? "Analisando grafo..." : aiSummary ? "Gerar novamente" : "Gerar resumo assistido"}
             </Button>
           </div>
 
@@ -596,7 +478,7 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
                   )}
                   {aiSummary.confidence && (
                     <Badge color={{ HIGH: C.red, MEDIUM: C.orange, LOW: C.green }[aiSummary.confidence] || C.textMuted}
-                      bg="transparent">{aiSummary.confidence} confidence</Badge>
+                      bg="transparent">Confiança {aiSummary.confidence}</Badge>
                   )}
                 </div>
               </div>
@@ -604,23 +486,23 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
               {/* Overview */}
               {aiSummary.overview && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8 }}>Overview</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8 }}>Visão geral</div>
                   <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.8 }}>{aiSummary.overview}</p>
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div className="graph-ai-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
                 {/* Infrastructure */}
                 {aiSummary.infrastructure && (
                   <div style={{ padding: "12px 14px", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>Infrastructure</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>Infraestrutura</div>
                     <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.6 }}>{aiSummary.infrastructure}</p>
                   </div>
                 )}
                 {/* Threat Assessment */}
                 {aiSummary.threat_assessment && (
                   <div style={{ padding: "12px 14px", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>Threat Assessment</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>Avaliação de ameaça</div>
                     <p style={{ margin: 0, fontSize: 13, color: C.text, lineHeight: 1.6 }}>{aiSummary.threat_assessment}</p>
                   </div>
                 )}
@@ -654,11 +536,10 @@ export default function Graph({ initialIndicator, onIndicatorConsumed }) {
       {/* Empty state */}
       {!graphData && !loading && !error && (
         <Card style={{ padding: "70px 40px", textAlign: "center" }}>
-          <div style={{ fontSize: 56, marginBottom: 16, opacity: 0.3 }}>🕸</div>
-          <div style={{ fontSize: 17, fontWeight: 600, color: C.text, marginBottom: 8 }}>Start an investigation</div>
+          <Icon name="target" size={32} color={C.textDim} />
+          <div style={{ fontSize: 17, fontWeight: 600, color: C.text, marginBottom: 8 }}>Inicie uma investigação</div>
           <div style={{ fontSize: 13, color: C.textMuted, maxWidth: 400, margin: "0 auto", lineHeight: 1.7 }}>
-            Enter any IP, domain, hash or URL above. The graph will map relationships between
-            infrastructure, malware families, MITRE ATT&CK techniques and threat indicators.
+            Informe IP, domínio, hash ou URL. O grafo exibirá somente relações retornadas pelas fontes consultadas.
           </div>
         </Card>
       )}
@@ -699,21 +580,21 @@ function NodeDetail({ node, edges, nodes }) {
 
       {/* Badges */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-        {node.isMain && <Badge color={C.accentLight} bg="rgba(59,130,246,0.12)">Main Indicator</Badge>}
+        {node.isMain && <Badge color={C.accentLight} bg="rgba(59,130,246,0.12)">Indicador principal</Badge>}
         {node.risk && <Badge color={RISK_COLORS[node.risk]} bg={`${RISK_COLORS[node.risk]}18`}>{node.risk}</Badge>}
-        {node.score !== undefined && <Badge color={color} bg={`${color}15`}>Score: {node.score}</Badge>}
+        {node.score != null && <Badge color={color} bg={`${color}15`}>Score: {node.score}</Badge>}
         {node.status && <Badge color={node.status === "online" ? C.red : C.textMuted} bg={node.status === "online" ? C.redBg : "rgba(88,107,133,0.1)"}>{node.status}</Badge>}
       </div>
 
       {/* Extra metadata */}
       {node.technique && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Technique</div>
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Técnica</div>
           <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{node.technique}</div>
           {node.tactic && <div style={{ fontSize: 11, color: C.orange, marginTop: 3 }}>{node.tactic}</div>}
-          {node.url && (
+          {node.url?.startsWith('https://attack.mitre.org/') && (
             <a href={node.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: C.accentLight, display: "block", marginTop: 4 }}>
-              View on MITRE ATT&CK ↗
+              Abrir MITRE ATT&CK ↗
             </a>
           )}
         </div>
@@ -723,7 +604,7 @@ function NodeDetail({ node, edges, nodes }) {
       {connectedNodes.length > 0 && (
         <div>
           <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>
-            Connections ({connectedNodes.length})
+            Relações ({connectedNodes.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {connectedNodes.slice(0, 8).map(({ edge, node: other, direction }, i) => {

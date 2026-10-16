@@ -55,17 +55,21 @@ function parseEml(content) {
 // ── COPY BUTTON ──────────────────────────────────────────────────
 function CopyBtn({ text }) {
   const [copied, setCopied] = useState(false);
-  function handle(e) {
+  const [error, setError] = useState(false);
+  async function handle(e) {
     e.stopPropagation();
-    navigator.clipboard.writeText(text).then(() => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setError(false);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    });
+    } catch { setError(true); }
   }
   return (
     <button
       onClick={handle}
-      title="Copy"
+      title={error ? 'Não foi possível copiar' : copied ? 'Copiado' : 'Copiar'}
+      aria-label={error ? 'Não foi possível copiar' : copied ? 'Copiado' : 'Copiar'}
       style={{
         background: "transparent", border: "none", cursor: "pointer",
         padding: 4, borderRadius: 6, color: copied ? C.green : C.textDim,
@@ -90,7 +94,11 @@ export default function PhishingAnalysis({ onInvestigate }) {
   function processFile(file) {
     setError(null);
     if (!file.name.toLowerCase().endsWith(".eml")) {
-      setError("Invalid file. Please select a .eml file.");
+      setError('Arquivo inválido. Selecione um arquivo .eml.');
+      return;
+    }
+    if (file.size > 10_000_000) {
+      setError('O arquivo excede o limite de 10 MB.');
       return;
     }
     const reader = new FileReader();
@@ -98,16 +106,17 @@ export default function PhishingAnalysis({ onInvestigate }) {
       const content = e.target.result;
       // Validate: EML files must have at least one header-like line
       if (!/^[\w-]+:\s/m.test(content)) {
-        setError("File does not appear to be a valid EML file.");
+        setError('O arquivo não parece ser um email EML válido.');
         return;
       }
       try {
         setFileName(file.name);
         setResult(parseEml(content));
       } catch {
-        setError("Failed to parse the EML file.");
+        setError('Não foi possível analisar o arquivo EML.');
       }
     };
+    reader.onerror = () => setError('Não foi possível ler o arquivo EML.');
     reader.readAsText(file);
   }
 
@@ -143,8 +152,8 @@ export default function PhishingAnalysis({ onInvestigate }) {
   return (
     <>
       <PageHeader
-        title="Phishing Analysis"
-        subtitle="Upload an .eml file to extract headers, URLs, and IPs for investigation."
+        title="Análise de phishing"
+        subtitle="Carregue um arquivo .eml para extrair cabeçalhos, URLs e IPs para investigação local."
         actions={result && (
           <>
             <Button
@@ -152,13 +161,13 @@ export default function PhishingAnalysis({ onInvestigate }) {
               icon={<Icon name="x" size={14} />}
               onClick={handleReset}
             >
-              Clear
+              Limpar
             </Button>
             <Button
               icon={<Icon name="external" size={14} color="#fff" />}
               onClick={() => window.open("https://app.phishtool.com", "_blank", "noopener noreferrer")}
             >
-              Analyze in PhishTool
+              Abrir PhishTool
             </Button>
           </>
         )}
@@ -171,7 +180,6 @@ export default function PhishingAnalysis({ onInvestigate }) {
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
-            onClick={() => inputRef.current?.click()}
             style={{
               border: `2px dashed ${dragging ? C.accent : C.border}`,
               borderRadius: 12,
@@ -186,25 +194,26 @@ export default function PhishingAnalysis({ onInvestigate }) {
               <Icon name="mail" size={52} color={dragging ? C.accentLight : C.textMuted} />
             </div>
             <div style={{ fontSize: 16, color: C.text, fontWeight: 500, marginBottom: 8 }}>
-              {dragging ? "Release to analyze" : "Drop your .eml file here"}
+              {dragging ? 'Solte para analisar' : 'Arraste o arquivo .eml para cá'}
             </div>
             <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 24 }}>
-              or click to browse · only .eml files are accepted
+              ou selecione um arquivo .eml, até 10 MB
             </div>
-            <Button variant="secondary" icon={<Icon name="upload" size={14} />}>
-              Select .eml file
+            <Button variant="secondary" onClick={() => inputRef.current?.click()} icon={<Icon name="upload" size={14} />}>
+              Selecionar arquivo .eml
             </Button>
             <input
               ref={inputRef}
               type="file"
               accept=".eml,message/rfc822"
               onChange={handleInput}
-              style={{ display: "none" }}
+              className="sr-only"
+              aria-label="Selecionar arquivo EML para análise"
             />
           </div>
 
           {error && (
-            <div style={{
+            <div role="alert" style={{
               marginTop: 14, padding: "10px 14px",
               background: C.redBg, border: `1px solid ${C.red}44`,
               borderRadius: 8, color: C.red, fontSize: 13,
@@ -228,10 +237,11 @@ export default function PhishingAnalysis({ onInvestigate }) {
           }}>
             <Icon name="mail" size={16} color={C.accentLight} />
             <span style={{ fontSize: 13, color: C.text, flex: 1, fontFamily: "monospace" }}>{fileName}</span>
-            <Badge color={C.green} bg={C.greenBg}>Parsed</Badge>
+            <Badge color={C.green} bg={C.greenBg}>Analisado</Badge>
             <button
               onClick={handleReset}
-              title="Clear"
+              title="Limpar análise"
+              aria-label="Limpar análise"
               style={{
                 background: "transparent", border: "none", cursor: "pointer",
                 color: C.textMuted, display: "flex", padding: 4, borderRadius: 6,
@@ -249,8 +259,8 @@ export default function PhishingAnalysis({ onInvestigate }) {
             <Card>
               <SectionHeader
                 icon="info" iconColor={C.accentLight} iconBg="rgba(59,130,246,0.12)"
-                title="Email Headers"
-                badge={<Badge color={C.accentLight} bg="rgba(59,130,246,0.1)">{headerRows.length + result.headers.received.length} fields</Badge>}
+                title="Cabeçalhos do email"
+                badge={<Badge color={C.accentLight} bg="rgba(59,130,246,0.1)">{headerRows.length + result.headers.received.length} campos</Badge>}
               />
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <tbody>
@@ -298,18 +308,18 @@ export default function PhishingAnalysis({ onInvestigate }) {
             <Card>
               <SectionHeader
                 icon="link" iconColor={C.orange} iconBg="rgba(245,158,11,0.12)"
-                title="Extracted URLs"
+                title="URLs extraídas"
                 badge={
                   <Badge
                     color={result.urls.length ? C.orange : C.textMuted}
                     bg={result.urls.length ? C.orangeBg : "rgba(136,150,173,0.1)"}
                   >
-                    {result.urls.length} found
+                    {result.urls.length} encontrada(s)
                   </Badge>
                 }
               />
               {result.urls.length === 0 ? (
-                <EmptyState message="No URLs found in this email." />
+                <EmptyState message="Nenhuma URL encontrada neste email." />
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
                   {result.urls.map((url, i) => (
@@ -329,18 +339,18 @@ export default function PhishingAnalysis({ onInvestigate }) {
             <Card>
               <SectionHeader
                 icon="globe" iconColor={C.red} iconBg="rgba(248,113,113,0.12)"
-                title="Extracted IPs"
+                title="IPs extraídos"
                 badge={
                   <Badge
                     color={result.ips.length ? C.red : C.textMuted}
                     bg={result.ips.length ? C.redBg : "rgba(136,150,173,0.1)"}
                   >
-                    {result.ips.length} found
+                    {result.ips.length} encontrado(s)
                   </Badge>
                 }
               />
               {result.ips.length === 0 ? (
-                <EmptyState message="No IPs found in this email." />
+                <EmptyState message="Nenhum IP encontrado neste email." />
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
                   {result.ips.map((ip, i) => (
@@ -352,7 +362,8 @@ export default function PhishingAnalysis({ onInvestigate }) {
                         {onInvestigate && (
                           <button
                             onClick={() => onInvestigate(ip)}
-                            title="Enrich this IP"
+                            title="Investigar este IP"
+                            aria-label={`Investigar ${ip}`}
                             style={{
                               background: "transparent", border: "none", cursor: "pointer",
                               padding: 4, borderRadius: 6, color: C.textDim,

@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from "react";
 import { C, FONT } from "../lib/theme";
 import Icon from "../components/Icon";
 import { Card, Badge, Button, Input, PageHeader } from "../components/UI";
-import { useLang } from "../contexts/LangContext";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 const PER_PAGE = 20;
@@ -44,6 +43,7 @@ export default function ThreatFeed() {
   const [stats, setStats] = useState(null);
   const [statsError, setStatsError] = useState(false);
   const [items, setItems] = useState([]);
+  const [listError, setListError] = useState(false);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
@@ -58,7 +58,7 @@ export default function ThreatFeed() {
     fetch(`${API_BASE}/threatfeed/stats`)
       .then(r => { if (!r.ok || !(r.headers.get("content-type") || "").includes("application/json")) throw new Error("stats failed"); return r.json(); })
       .then(d => {
-        if (d && d.total) { setStats(d); setLastUpdated(d.lastUpdated); }
+        if (d && Number.isFinite(d.total) && d.total >= 0) { setStats(d); setLastUpdated(d.lastUpdated); }
         else setStatsError(true);
       })
       .catch(() => setStatsError(true))
@@ -67,6 +67,7 @@ export default function ThreatFeed() {
 
   const fetchList = useCallback(() => {
     setLoadingList(true);
+    setListError(false);
     const params = new URLSearchParams({
       page,
       perPage: PER_PAGE,
@@ -77,10 +78,10 @@ export default function ThreatFeed() {
       .then(r => { if (!r.ok || !(r.headers.get("content-type") || "").includes("application/json")) throw new Error("list failed"); return r.json(); })
       .then(d => {
         setItems(Array.isArray(d.items) ? d.items : []);
-        setTotal(d.total || 0);
+        setTotal(Number.isFinite(d.total) ? d.total : 0);
         setTotalPages(d.totalPages || 1);
       })
-      .catch(() => { setItems([]); setTotal(0); })
+      .catch(() => { setItems([]); setTotal(0); setListError(true); })
       .finally(() => setLoadingList(false));
   }, [page, search, malwareFilter]);
 
@@ -98,17 +99,17 @@ export default function ThreatFeed() {
   return (
     <>
       <PageHeader
-        title="Threat Intelligence Feed"
-        subtitle="Live feed of confirmed malicious C2 servers from Feodo Tracker (abuse.ch). Updated hourly."
+        title="Threat Feed"
+        subtitle="Indicadores de servidores C2 publicados pelo Feodo Tracker (abuse.ch)."
         actions={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {lastUpdated && (
               <span style={{ fontSize: 12, color: C.textMuted }}>
-                Last sync: {new Date(lastUpdated).toLocaleTimeString()}
+                Última atualização: {new Date(lastUpdated).toLocaleTimeString('pt-BR')}
               </span>
             )}
             <Button variant="secondary" onClick={fetchList} icon={<Icon name="refresh" size={13} />} style={{ fontSize: 12, padding: "7px 14px" }}>
-              Refresh
+              Atualizar
             </Button>
           </div>
         }
@@ -116,17 +117,17 @@ export default function ThreatFeed() {
 
       {/* Stats row */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-        <StatCard icon="alert" label={"Total C2 IPs"} value={loadingStats ? "..." : (stats?.total || 0).toLocaleString()} color={C.red} bg={C.redBg} />
-        <StatCard icon="layers" label={"Malware Families"} value={loadingStats ? "..." : (topMalware.length || 0)} color={C.orange} bg={C.orangeBg} />
-        <StatCard icon="globe" label={"Countries"} value={loadingStats ? "..." : (topCountries.length || 0)} color={C.accentLight} bg="rgba(59,130,246,0.1)" />
-        <StatCard icon="check" label="Source" value="Feodo Tracker" color={C.green} bg={C.greenBg} />
+        <StatCard icon="alert" label="IPs C2 registrados" value={loadingStats ? '...' : stats ? stats.total.toLocaleString('pt-BR') : '—'} color={C.red} bg={C.redBg} />
+        <StatCard icon="layers" label="Famílias de malware" value={loadingStats ? '...' : stats ? topMalware.length : '—'} color={C.orange} bg={C.orangeBg} />
+        <StatCard icon="globe" label="Países" value={loadingStats ? '...' : stats ? topCountries.length : '—'} color={C.accentLight} bg="rgba(59,130,246,0.1)" />
+        <StatCard icon="check" label="Fonte" value="Feodo Tracker" color={C.green} bg={C.greenBg} />
       </div>
 
       {/* Top malware + countries — only if data loaded */}
       {!loadingStats && !statsError && topMalware.length > 0 && (
         <div className="detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
           <Card>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, marginBottom: 14 }}>Top Malware Families</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, marginBottom: 14 }}>Famílias de malware mais frequentes</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {topMalware.map(m => {
                 const style = malwareStyle(m.name);
@@ -147,7 +148,7 @@ export default function ThreatFeed() {
           </Card>
 
           <Card>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, marginBottom: 14 }}>Top Origin Countries</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, marginBottom: 14 }}>Países de origem mais frequentes</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {topCountries.map(c => {
                 const pct = stats.total > 0 ? Math.round((c.count / stats.total) * 100) : 0;
@@ -172,7 +173,7 @@ export default function ThreatFeed() {
       {statsError && (
         <div style={{ marginBottom: 20, padding: "14px 18px", background: C.orangeBg, border: `1px solid ${C.orange}55`, borderRadius: 10, fontSize: 13, color: C.orange, display: "flex", alignItems: "center", gap: 10 }}>
           <Icon name="alert" size={16} color={C.orange} />
-          Could not load stats. The feed will be fetched on first search. Make sure the backend is running.
+          As estatísticas do feed estão indisponíveis. A listagem pode ser consultada separadamente.
         </div>
       )}
 
@@ -184,17 +185,19 @@ export default function ThreatFeed() {
             <div style={{ position: "relative", flex: 1 }}>
               <Icon name="search" size={14} color={C.textDim} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
               <Input
+                aria-label="Pesquisar IP, família de malware ou país"
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSearch()}
-                placeholder={"Search by IP, malware family, or country..."}
+                placeholder="Pesquisar IP, família de malware ou país..."
                 style={{ width: "100%", paddingLeft: 34 }}
               />
             </div>
-            <Button onClick={handleSearch} icon={<Icon name="search" size={14} color="#fff" />}>Search</Button>
+            <Button onClick={handleSearch} icon={<Icon name="search" size={14} color="#fff" />}>Buscar</Button>
           </div>
 
           <select
+            aria-label="Filtrar família de malware"
             value={malwareFilter}
             onChange={e => { setMalwareFilter(e.target.value); setPage(1); }}
             style={{
@@ -207,14 +210,14 @@ export default function ThreatFeed() {
               backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center",
             }}
           >
-            <option value="All">All Families</option>
+            <option value="All">Todas as famílias</option>
             {malwareOptions.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
 
           {(search || malwareFilter !== "All") && (
             <button onClick={() => { setSearch(""); setSearchInput(""); setMalwareFilter("All"); setPage(1); }}
               style={{ background: "transparent", border: "none", color: C.accentLight, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
-              ✕ Clear
+              ✕ Limpar
             </button>
           )}
 
@@ -227,20 +230,22 @@ export default function ThreatFeed() {
         {loadingList ? (
           <div style={{ padding: "60px 20px", textAlign: "center" }}>
             <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${C.border}`, borderTopColor: C.accent, animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
-            <div style={{ fontSize: 13, color: C.textMuted }}>Loading threat feed...</div>
+            <div style={{ fontSize: 13, color: C.textMuted }}>Carregando indicadores...</div>
           </div>
+        ) : listError ? (
+          <div role="alert" className="empty">Não foi possível carregar a listagem do feed. Tente atualizar.</div>
         ) : items.length === 0 ? (
           <div style={{ padding: "60px 20px", textAlign: "center" }}>
             <Icon name="search" size={32} color={C.textDim} />
-            <div style={{ marginTop: 12, fontSize: 14, color: C.text, fontWeight: 600 }}>No results found</div>
-            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>Try a different IP or malware family</div>
+            <div style={{ marginTop: 12, fontSize: 14, color: C.text, fontWeight: 600 }}>Nenhum resultado encontrado</div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>Tente outro IP ou família de malware.</div>
           </div>
         ) : (
           <>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <div className="table-wrap"><table aria-label="Indicadores do Feodo Tracker" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: C.bgSidebar, borderBottom: `1px solid ${C.border}` }}>
-                  {["IP ADDRESS", "MALWARE FAMILY", "PORT", "COUNTRY", "STATUS", "FIRST SEEN"].map(h => (
+                  {["ENDEREÇO IP", "FAMÍLIA DE MALWARE", "PORTA", "PAÍS", "STATUS", "PRIMEIRA OBSERVAÇÃO"].map(h => (
                     <th key={h} style={{ textAlign: "left", padding: "10px 16px", color: C.textMuted, fontWeight: 500, fontSize: 11, letterSpacing: 0.5 }}>{h}</th>
                   ))}
                 </tr>
@@ -257,7 +262,7 @@ export default function ThreatFeed() {
                     >
                       <td style={{ padding: "12px 16px" }}>
                         <span style={{ fontFamily: "monospace", fontWeight: 600, color: isMatch ? C.red : C.text, fontSize: 13 }}>
-                          {isMatch ? "🎯 " : ""}{item.ip}
+                          {item.ip}
                         </span>
                       </td>
                       <td style={{ padding: "12px 16px" }}>
@@ -272,7 +277,7 @@ export default function ThreatFeed() {
                           color={item.status === "online" ? C.red : C.textMuted}
                           bg={item.status === "online" ? C.redBg : "rgba(88,107,133,0.1)"}
                         >
-                          {item.status || "unknown"}
+                          {item.status || "desconhecido"}
                         </Badge>
                       </td>
                       <td style={{ padding: "12px 16px", color: C.textMuted, fontSize: 12 }}>{item.first_seen || "—"}</td>
@@ -280,18 +285,18 @@ export default function ThreatFeed() {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
 
             <div style={{ padding: "14px 20px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 12, color: C.textMuted }}>
-                Showing {((page - 1) * PER_PAGE) + 1}–{Math.min(page * PER_PAGE, total)} of {total.toLocaleString()} results
+                Exibindo {((page - 1) * PER_PAGE) + 1}–{Math.min(page * PER_PAGE, total)} de {total.toLocaleString('pt-BR')} resultados
               </span>
               <div style={{ display: "flex", gap: 6 }}>
-                <PgBtn disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹ Prev</PgBtn>
+                <PgBtn disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹ Anterior</PgBtn>
                 <span style={{ display: "flex", alignItems: "center", padding: "0 12px", fontSize: 12, color: C.textMuted }}>
-                  Page {page} of {totalPages}
+                  Página {page} de {totalPages}
                 </span>
-                <PgBtn disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next ›</PgBtn>
+                <PgBtn disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Próxima ›</PgBtn>
               </div>
             </div>
           </>
@@ -300,11 +305,11 @@ export default function ThreatFeed() {
 
       <div style={{ marginTop: 12, padding: "10px 16px", background: "rgba(59,130,246,0.05)", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 8 }}>
         <Icon name="info" size={14} color={C.textDim} />
-        Data sourced from{" "}
+        Dados fornecidos pelo{" "}
         <a href="https://feodotracker.abuse.ch" target="_blank" rel="noopener noreferrer" style={{ color: C.accentLight }}>
           Feodo Tracker
         </a>{" "}
-        by abuse.ch — the same organization behind URLhaus and MalwareBazaar.
+        da abuse.ch, também responsável pelo URLhaus e MalwareBazaar.
       </div>
     </>
   );

@@ -2,15 +2,12 @@ import { useEffect, useState } from 'react';
 import { C } from '../lib/theme';
 import { sourceStatusView } from '../lib/sourceStatus';
 import { loadInvestigations, saveInvestigations, exportWorkspaceBackup, importWorkspaceBackup, deleteInvestigationsBefore } from '../lib/investigationStore';
+import { readPreferences, savePreferences, validSlackWebhook } from '../lib/preferences';
 
-const SETTINGS_KEY = 'iocenricher_settings';
 const apiBase = import.meta.env.VITE_API_URL || '/api';
-function readSettings() {
-  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); } catch { return {}; }
-}
 
 export default function Settings({ onHistoryChange }) {
-  const [settings, setSettings] = useState(readSettings);
+  const [settings, setSettings] = useState(() => readPreferences(localStorage));
   const [sources, setSources] = useState(null);
   const [history, setHistory] = useState([]);
   const [message, setMessage] = useState('');
@@ -28,20 +25,16 @@ export default function Settings({ onHistoryChange }) {
       setSources((await response.json()).sources || []);
       setHistory(items);
     } catch { setSources(null); setHistory(await loadInvestigations()); }
-    setLoading(false);
+    finally { setLoading(false); }
   }
   useEffect(() => { refresh(); }, []);
 
   function saveSlack() {
-    if (settings.slackAlerts && !/^https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/.test(settings.slackWebhook || '')) {
-      setMessage('Informe um webhook oficial do Slack para ativar as notificações.');
-      return;
-    }
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    setMessage('Preferência de Slack salva neste navegador.');
+    try { savePreferences(localStorage, settings); setMessage('Preferência de Slack salva neste navegador.'); }
+    catch (error) { setMessage(error.message || 'Não foi possível salvar a preferência neste navegador.'); }
   }
   async function testSlack() {
-    if (!settings.slackWebhook) return;
+    if (!validSlackWebhook(settings.slackWebhook)) { setMessage('Informe um webhook oficial do Slack para o teste.'); return; }
     setTesting(true);
     try {
       const response = await fetch(`${apiBase}/notify/slack`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ webhookUrl: settings.slackWebhook, test: true, result: { indicator: 'test.example.com', type: 'domain', risk: { score: null, level: 'INCONCLUSIVO', factors: ['Mensagem de teste; não representa uma investigação real.'] }, recommendation: 'TESTE', mitre: [] } }) });
@@ -98,8 +91,8 @@ export default function Settings({ onHistoryChange }) {
     <div><h1 className="page-title">Preferências</h1><p className="page-subtitle">Estado das integrações e dados deste navegador.</p></div>
     {message && <div className="panel panel-pad" role="status">{message}</div>}
     <section className="panel panel-pad"><div className="toolbar" style={{ justifyContent: 'space-between' }}><h2 className="panel-title">Fontes OSINT</h2><button className="btn" onClick={refresh} disabled={loading}>{loading ? 'Verificando...' : 'Atualizar estado'}</button></div><p style={{ color: C.textMuted }}>O estado abaixo vem da API. Disponibilidade de uma fonte pode mudar entre esta verificação e uma consulta.</p>{sources ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Fonte</th><th>Estado verificado</th></tr></thead><tbody>{sources.map(source => { const state = sourceStatusView(source.status); return <tr key={source.name}><td>{source.name}</td><td style={{ color: state.color }}>{state.label}</td></tr>; })}</tbody></table></div> : <div className="empty">Estado das fontes indisponível.</div>}</section>
-    <section className="panel panel-pad"><h2 className="panel-title">Dados locais e backup</h2><p style={{ color: C.textMuted, lineHeight: 1.6 }}>Há {history.length} observação(ões) salvas neste navegador. Apagar dados do navegador pode remover histórico, notas e casos. O backup inclui esses três conjuntos; a importação preserva os registros existentes.</p><div className="toolbar"><button className="btn" onClick={exportBackup}>Exportar backup JSON</button><label className="btn" style={{ cursor: 'pointer' }}>Importar backup JSON<input type="file" accept="application/json,.json" onChange={importBackup} style={{ display: 'none' }} /></label></div><div className="retention-controls"><label>Remover observações anteriores a<select className="field" value={retentionDays} onChange={event => setRetentionDays(Number(event.target.value))}>{[30, 90, 180, 365].map(days => <option key={days} value={days}>{days} dias</option>)}</select></label><span>{oldObservations} observação(ões) elegíveis; notas e casos permanecem.</span><button className="btn" disabled={!oldObservations} onClick={applyRetention}>Aplicar retenção</button></div></section>
-    <section className="panel panel-pad"><h2 className="panel-title">Notificações Slack</h2><p style={{ color: C.textMuted, lineHeight: 1.6 }}>Quando ativada, a aplicação envia análises de risco alto ou crítico ao webhook informado. O endereço fica nas preferências deste navegador e é enviado à API somente para entregar a mensagem.</p><label className="toolbar" style={{ marginBottom: 12 }}><input type="checkbox" checked={Boolean(settings.slackAlerts)} onChange={event => setSettings(value => ({ ...value, slackAlerts: event.target.checked }))} /> Ativar notificações de análises de alto risco</label><label style={{ display: 'block', marginBottom: 7 }}>Webhook oficial do Slack</label><input className="field" type="password" autoComplete="off" value={settings.slackWebhook || ''} onChange={event => setSettings(value => ({ ...value, slackWebhook: event.target.value }))} placeholder="https://hooks.slack.com/services/..." style={{ width: '100%', marginBottom: 12 }} /><div className="toolbar"><button className="btn btn-primary" onClick={saveSlack}>Salvar preferência</button><button className="btn" onClick={testSlack} disabled={testing || !settings.slackWebhook}>{testing ? 'Enviando...' : 'Enviar mensagem de teste'}</button></div></section>
+    <section className="panel panel-pad"><h2 className="panel-title">Dados locais e backup</h2><p style={{ color: C.textMuted, lineHeight: 1.6 }}>Há {history.length} observação(ões) salvas neste navegador. Apagar dados do navegador pode remover histórico, notas e casos. O backup inclui esses três conjuntos; a importação preserva os registros existentes.</p><div className="toolbar"><button className="btn" onClick={exportBackup}>Exportar backup JSON</button><label className="btn" style={{ cursor: 'pointer' }}>Importar backup JSON<input className="sr-only" type="file" accept="application/json,.json" onChange={importBackup} /></label></div><div className="retention-controls"><label>Remover observações anteriores a<select className="field" value={retentionDays} onChange={event => setRetentionDays(Number(event.target.value))}>{[30, 90, 180, 365].map(days => <option key={days} value={days}>{days} dias</option>)}</select></label><span>{oldObservations} observação(ões) elegíveis; notas e casos permanecem.</span><button className="btn" disabled={!oldObservations} onClick={applyRetention}>Aplicar retenção</button></div></section>
+    <section className="panel panel-pad"><h2 className="panel-title">Notificações Slack</h2><p style={{ color: C.textMuted, lineHeight: 1.6 }}>Quando ativada, a aplicação envia análises de risco alto ou crítico ao webhook informado. O endereço fica nas preferências deste navegador e é enviado à API somente para entregar a mensagem.</p><label className="toolbar" style={{ marginBottom: 12 }}><input type="checkbox" checked={Boolean(settings.slackAlerts)} onChange={event => setSettings(value => ({ ...value, slackAlerts: event.target.checked }))} /> Ativar notificações de análises de alto risco</label><label htmlFor="slack-webhook" style={{ display: 'block', marginBottom: 7 }}>Webhook oficial do Slack</label><input id="slack-webhook" className="field" type="password" autoComplete="off" value={settings.slackWebhook || ''} onChange={event => setSettings(value => ({ ...value, slackWebhook: event.target.value }))} placeholder="https://hooks.slack.com/services/..." style={{ width: '100%', marginBottom: 12 }} /><div className="toolbar"><button className="btn btn-primary" onClick={saveSlack}>Salvar preferência</button><button className="btn" onClick={testSlack} disabled={testing || !validSlackWebhook(settings.slackWebhook)}>{testing ? 'Enviando...' : 'Enviar mensagem de teste'}</button></div></section>
     <section className="panel panel-pad"><h2 className="panel-title">Classificação de risco</h2><p style={{ color: C.textMuted, lineHeight: 1.6 }}>O score é calculado no backend a partir das respostas disponíveis. A confiança descreve a consistência das evidências; a cobertura mostra quantas fontes de reputação responderam. Uma falha de consulta permanece inconclusiva e não recebe score zero.</p></section>
   </div>;
 }

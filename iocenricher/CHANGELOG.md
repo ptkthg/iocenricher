@@ -17,7 +17,12 @@
 - O modelo Groq descontinuado foi substituído por `openai/gpt-oss-20b` nas análises individuais e do grafo, com saída JSON; o health agora confirma a disponibilidade do modelo configurado.
 - O motor de risco exige sinal forte de fonte de reputação antes de classificar um IOC como malicioso; score alto apenas por sinais contextuais permanece suspeito.
 
-### Fase 2 — em andamento
+### Fase 2 — concluída em 2026-10-16, com limitações no ROADMAP
+
+- Grafo com simulação isolada em hook, atualização correta ao trocar entidades, seleção por teclado e detalhes em layout móvel.
+- Cartões de fontes OSINT extraídos da investigação, tabelas com rolagem local e grades adaptadas para mobile; idade do domínio deixou de ser sinal verde de reputação.
+- Preferências e seleção de relatórios extraídas para utilitários testáveis; seleção permanece estável ao reordenar observações.
+- Threat Feed distingue indisponibilidade de lista/estatísticas de contagens reais, e a análise de phishing valida tamanho do arquivo e erros de leitura. Telas de Fontes, Grafo e Phishing receberam tradução e rótulos acessíveis.
 
 - A análise em lote usa o serviço comum de enriquecimento, mantém erros sem score de risco, valida o cache local e bloqueia lotes acima de dez IOCs em vez de ignorar indicadores excedentes.
 - A tela em lote foi traduzida, ganhou ordenação acessível por teclado, rótulos de filtros e ações, e informa falhas de armazenamento ou cópia.
